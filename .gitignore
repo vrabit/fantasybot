@@ -1,0 +1,10 @@
+# Python virtual environment
+/fantasyenv/
+__pycache__/
+
+# Python cache
+*.py[cod]
+
+#private files
+/discordauth/
+/yfpyauth/
