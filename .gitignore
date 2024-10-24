@@ -5,6 +5,10 @@ __pycache__/
 # Python cache
 *.py[cod]
 
-#private files
+# Private files
 /discordauth/
 /yfpyauth/
+
+# Ignore backups
+/persistent_data/backup.json
+

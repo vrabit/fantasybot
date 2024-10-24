@@ -120,6 +120,13 @@ class fantasyQuery:
         player_url = self.TRANSACTIONS_URL
         return self.yahoo_query.query(player_url,[],data_type_class=None, sort_function=None)
 
+    def get_game_weeks(self):
+        game_url = self.GAME_URL + self.yahoo_query.get_game_key_by_season(self.SEASON)
+        return self.yahoo_query.query(f'{game_url}/game_weeks',['game'],data_type_class=None, sort_function=None)
+    
+    def get_team_stats(self, week, team_id):
+        return self.yahoo_query.get_team_stats_by_week(team_id, week)
+
     #doesnt quite work
     def get_player_week(self,player_id,week):
         game_id = self.yahoo_query.game_id

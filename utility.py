@@ -3,6 +3,7 @@ import os
 
 from pathlib import Path
 import string
+from collections import deque
 
 import csv
 
@@ -27,6 +28,12 @@ def load_members():
         members = json.load(file)
 
     return members
+
+def number_of_teams():
+    with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
+        members = json.load(file)
+
+    return len(members)
 
 def init_memlist(teams):
     
@@ -58,6 +65,100 @@ def create_stat_file(categories):
         entry[str(categories.stats[i].stat_id)] = categories.stats[i].name
 
     return entry
+
+###################################################
+# Setup persistent week dates          
+###################################################
+
+def load_dates():
+    date_file = current_dir / 'persistent_data' / 'week_dates.json'
+
+    with open(date_file,'r') as file:
+        dates_list = json.load(file)
+
+    return dates_list
+
+def store_dates(dates_dict):
+    date_file = current_dir / 'persistent_data' / 'week_dates.json'
+
+    with open(date_file, 'w') as file:
+        json.dump(dates_dict, file, indent = 4)
+
+def construct_date_list(gameweek_list):
+    dates_dict = {}
+    for i in range(len(gameweek_list)):
+        week = gameweek_list[i]['game_week'].week
+        current_entry = [gameweek_list[i]['game_week'].start,gameweek_list[i]['game_week'].end]
+        dates_dict[week] = current_entry
+
+    return dates_dict
+
+###############################################
+# create and maintain current slap challenges
+###############################################
+
+def clear_challenges():
+    with open(current_dir/ 'persistent_data'/ 'challenges.json', 'w') as file:
+        json.dump({},file)
+
+def load_challenges():
+    challenges_file = current_dir/ 'persistent_data'/ 'challenges.json'
+
+    if os.path.exists(challenges_file):
+        with open(challenges_file, 'r') as file:
+            challenges = json.load(file)
+    else:
+        challenges = {}
+        with open(challenges_file, 'w') as file:
+            json.dump(challenges,file)
+            
+    # convert to list to deque()
+    converted = {}
+    for key, value in challenges.items():
+        converted[key] = deque(value)
+
+    return challenges
+
+def save_challenges(challenges):
+    serializable = {}
+    for key, value in challenges.items():
+        serializable[key] = list(value)
+
+    with open(current_dir/ 'persistent_data'/ 'challenges.json', 'w') as file:
+        json.dump(serializable, file, indent = 4)
+
+def check_queue_exists(queue, team_id):
+    return team_id in queue
+
+def check_exists(challenger_team_id, challengee_team_id, challenges):
+    challenger_queue = challenges.get(challenger_team_id)
+    challengee_queue = challenges.get(challengee_team_id)
+    
+    # Check if the challenge exists in either queue
+    if challenger_queue and check_queue_exists(challenger_queue, challengee_team_id):
+        return True
+    if challengee_queue and check_queue_exists(challengee_queue, challenger_team_id):
+        return True
+    
+    return False
+
+def add_challenges(challenger_team_id, challengee_team_id):
+    # load challenges
+    challenges = load_challenges()
+
+    if check_exists(challenger_team_id, challengee_team_id, challenges):
+        return
+
+    if challenges.get(challenger_team_id) is not None:
+        challenges[challenger_team_id].append(challengee_team_id)
+    else:
+        new_deque = deque([challengee_team_id])
+        challenges[challenger_team_id] = new_deque
+
+    save_challenges(challenges)
+
+
+#############################################
 
 def bind_discord( draft_id, discord_id):
     
@@ -97,6 +198,37 @@ def teamid_to_discord(team_id):
             return members[i].get('discord_id')
         
     return None
+
+def teamid_to_name(team_id):
+    with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
+        members = json.load(file)
+
+    for i in range(len(members)):
+        if members[i].get('id') == str(team_id):
+            return members[i].get('name')
+        
+    return None
+
+def discord_to_teamid(discord_id):
+    with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
+        members = json.load(file)
+
+    for i in range(len(members)):
+        if members[i].get('discord_id') == str(discord_id):
+            return members[i].get('id')
+        
+    return None
+
+def discord_to_name(discord_id):
+    with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
+        members = json.load(file)
+
+    for i in range(len(members)):
+        if members[i].get('discord_id') == str(discord_id):
+            return members[i].get('name')
+        
+    return None
+    
 
 def id_to_mention(user):
     return '<@'+str(user) + '>'
@@ -138,4 +270,10 @@ def to_blue_text(text):
     return f"```glsl\n{text}\n```"
 
 def to_block(text):
+    return f"```text\n{text}```"
+
+def list_to_block(text_list):
+    text = ''
+    for element in text_list:
+        text = text + element + '\n'
     return f"```text\n{text}```"
