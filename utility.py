@@ -9,6 +9,18 @@ import csv
 
 current_dir = Path(__file__).parent
 
+
+def get_private_data():
+
+    new_dict = {}
+    with open(current_dir / 'discordauth'/ 'private.json','r') as file:
+        data = json.load(file)
+    return data
+
+###################################################
+# player ID          
+###################################################
+
 def load_players():
 
     new_dict = {}
@@ -22,6 +34,11 @@ def load_players():
             new_dict[key] = value
 
     return new_dict
+
+
+###################################################
+# members          
+###################################################
 
 def load_members():
     with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
