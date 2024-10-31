@@ -47,7 +47,7 @@ class MaintainFantasy(commands.Cog):
             )
 
             self.bot.fantasy_query = fantasyQuery(yahoo_query)
-            print('     .. Done')
+        print('     .. Done')
 
 
     ###################################################

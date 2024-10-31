@@ -687,6 +687,10 @@ class FantasyQuery(commands.Cog):
 
         await interaction.followup.send(embed = embed,ephemeral=False)
 
+    ###################################################
+    # Error Handling         
+    ###################################################
+
     async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         if isinstance(error, app_commands.CommandNotFound):
             await interaction.response.send_message("This command does not exist.", ephemeral=True)

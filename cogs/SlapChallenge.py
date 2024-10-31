@@ -375,6 +375,20 @@ class SlapChallenge(commands.Cog):
         view.message = message
 
     ###################################################
+    # Error Handling         
+    ###################################################
+
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        if isinstance(error, app_commands.CommandNotFound):
+            await interaction.response.send_message("This command does not exist.", ephemeral=True)
+        elif isinstance(error, app_commands.CheckFailure):
+            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+        else:
+            await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
+            # Log the error or print details for debugging
+            print(f"Error: {error}")
+
+    ###################################################
     # Handle Exit           
     ###################################################
 

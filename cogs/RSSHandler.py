@@ -138,9 +138,6 @@ class RSSHandler(commands.Cog):
             utility.init_memlist(self.bot.fantasy_query.get_teams())
             print(' init memlist')
 
-
-    
-
     ###################################################
     # Handle Exit           
     ###################################################
