@@ -22,7 +22,7 @@ class MaintainFantasy(commands.Cog):
     # Refresh fantasy every 4 hours         
     ###################################################
 
-    @tasks.loop(minutes=240)
+    @tasks.loop(minutes=60)
     async def refresh_fantasy(self):
         print('     Refreshing Fantasy Object')
         async with self.bot.fantasy_query_lock:

@@ -7,6 +7,8 @@ import json
 import asyncio
 from pathlib import Path
 
+from difflib import get_close_matches
+
 data = utility.get_private_data()
 
 # Decorator guild_id
@@ -562,13 +564,24 @@ class FantasyQuery(commands.Cog):
             await interaction.followup.send(embed = embed,ephemeral=False)
 
 
-    @app_commands.command(name="player",description="NFL player details")
-    @app_commands.describe(first="firstname",last="lastname")
+    @app_commands.command(name="player_stats",description="NFL player details")
+    @app_commands.describe(player_name="name")
     @app_commands.guilds(discord.Object(id=guild_id))
-    async def player(self,interaction:discord.Interaction,first:int,last:int):
+    async def player_stats(self,interaction:discord.Interaction,player_name:str):
         await interaction.response.defer()
+        player_list = utility.load_players()
+        closest_keys = get_close_matches(player_name,player_list,n=1,cutoff=0.6)
+        
+        if len(closest_keys) == 0:
+             await interaction.followup.send("Doesn't exit or you need to spell better.")
+             return
+
+        if closest_keys[0] == player_name:
+            name = player_name
+        else:
+            name = closest_keys[0]
+
         async with self.bot.fantasy_query_lock:
-            name = f"{first} {last}"
             player_id = self.bot.fantasy_query.get_player_id(name)
 
             # weekly stats
@@ -586,7 +599,7 @@ class FantasyQuery(commands.Cog):
 
         # season points
         async with self.bot.fantasy_query_lock:
-            season_league = self.bot.get_league_stats(player_id)['league']
+            season_league = self.bot.fantasy_query.get_league_stats(player_id)['league']
 
         season_stats = season_league.players[0]
         embed.add_field(name = 'Season Pts', value = utility.to_block(season_stats.player_points.total))

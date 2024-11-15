@@ -76,12 +76,25 @@ async def reload_extensions():
 @bot.command()
 @commands.guild_only()
 @commands.is_owner()
-async def sync(ctx:commands.Context)->None:
+async def clear_global_commands(ctx:commands.Context)->None:
+    ctx.bot.tree.clear_commands(guild=guild)
+    print('Cleared global commands.')
 
+@bot.command()
+@commands.guild_only()
+@commands.is_owner()
+async def clear_guild_commands(ctx:commands.Context)->None:
+    ctx.bot.tree.clear_commands(guild=ctx.guild)
+    print('Cleared guild commands.')
+
+@bot.command()
+@commands.guild_only()
+@commands.is_owner()
+async def sync(ctx:commands.Context)->None:
     try:
         commands = await ctx.bot.tree.sync(guild=ctx.guild)
-        print(commands)
         print(f"{len(commands)} Commands synced to guild: {ctx.guild.id}")
+        await ctx.send(f"Synced the tree.")
     except discord.HTTPException as e:
         print(f"HTTPException: Failed to sync commands for guild {ctx.guild.id} due to an HTTP error: {e}")
     except discord.CommandSyncFailure as e:
@@ -92,15 +105,8 @@ async def sync(ctx:commands.Context)->None:
         print("MissingApplicationID: Bot is missing an application ID. Ensure it's set properly.")
     except discord.TranslationError as e:
         print(f"TranslationError: A translation issue occurred while syncing commands: {e}")
-    await ctx.send(f"Synced the tree.")
+    
 
-@bot.command()
-@commands.guild_only()
-@commands.is_owner()
-async def clear_global_commands(ctx:commands.Context):
-    bot.tree.clear_commands(guild=None)
-    await bot.tree.sync()
-    await ctx.send("Global Commands Cleared")
 
 @bot.event
 async def on_ready():

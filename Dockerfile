@@ -13,6 +13,9 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && apt-get clean
 
+# Set the environment variable for unbuffered output
+ENV PYTHONUNBUFFERED=1
+
 # Copy the requirements file into the container
 COPY requirements.txt .
 
@@ -23,4 +26,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Command to run the application
-CMD ["python", "disbot.py"]
+CMD ["python", "main.py"]

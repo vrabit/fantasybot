@@ -276,6 +276,10 @@ def arg_to_int(arg):
         print(f"{arg} is not a valid integer")
         return None
 
+def print(list):
+    for element in list:
+        print(element)
+        print('\n')
 
 # Capitalizes words - numbers are blue
 def to_red_text(text):
