@@ -1,5 +1,5 @@
-# Use the official Python image from Docker Hub
-FROM arm32v7/python:3.9-slim
+# Use Python 3.10+ base image
+FROM arm32v7/python:3.10-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -11,7 +11,12 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     libffi-dev \
     libssl-dev \
-    && apt-get clean
+    build-essential \
+    cmake \
+    ninja-build \
+    libjpeg-dev \
+    zlib1g-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Set the environment variable for unbuffered output
 ENV PYTHONUNBUFFERED=1
@@ -20,6 +25,7 @@ ENV PYTHONUNBUFFERED=1
 COPY requirements.txt .
 
 # Install dependencies
+RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code into the container
