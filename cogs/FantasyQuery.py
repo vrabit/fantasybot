@@ -1,6 +1,6 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import tasks, commands
 
 import utility
 import json
@@ -8,6 +8,8 @@ import asyncio
 from pathlib import Path
 
 from difflib import get_close_matches
+
+import datetime
 
 data = utility.get_private_data()
 
@@ -27,6 +29,8 @@ class FantasyQuery(commands.Cog):
         self.channel_id_lock = asyncio.Lock()
         self.news_channel_id = None
         self.news_id_lock = asyncio.Lock()
+
+        self.store_data.start()
 
         # bot embed color
         self.emb_color = discord.Color.from_rgb(225, 198, 153)
@@ -699,6 +703,214 @@ class FantasyQuery(commands.Cog):
             embed.add_field(name = f"{current_player['name']} {record}",value = utility.to_block(formated),inline = False)
 
         await interaction.followup.send(embed = embed,ephemeral=False)
+
+
+    async def highest_scoring(self, matchups_list):
+        highest_scoring_team_pts = -1
+
+        for i in range(len(matchups_list)):
+            team_list = matchups_list[i].teams
+            
+            for team in team_list:
+                if highest_scoring_team_pts == -1:
+                    highest_scoring_team_pts = team.team_points.total
+                    highest_url = team.url
+                    highest_name = team.name
+                
+                elif team.team_points.total > highest_scoring_team_pts:
+                    highest_scoring_team_pts = team.team_points.total
+                    highest_url = team.url
+                    highest_name = team.name
+
+        return (highest_scoring_team_pts, highest_name, highest_url)
+
+
+    async def lowest_scoring(self, matchups_list):
+        lowest_scoring_team_pts = 10000
+
+        for i in range(len(matchups_list)):
+            team_list = matchups_list[i].teams
+            
+            for team in team_list:
+                if lowest_scoring_team_pts == 10000:
+                    lowest_scoring_team_pts = team.team_points.total
+                    lowest_url = team.url
+                    lowest_name = team.name
+                
+                elif team.team_points.total < lowest_scoring_team_pts:
+                    lowest_scoring_team_pts = team.team_points.total
+                    lowest_url = team.url
+                    lowest_name = team.name
+
+        return (lowest_scoring_team_pts, lowest_name, lowest_url)
+
+
+    async def highest_margin_win(self, matchups_list):
+        highest_margin_team_pts = 0
+        winning_name = ""
+        winning_pts = 0
+        losing_name = ""
+        losing_pts = 0
+
+            
+        for i in range(len(matchups_list)):
+            team_list = matchups_list[i].teams
+
+            if len(team_list) == 2:
+                current_margin_pts = abs(team_list[0].team_points.total - team_list[1].team_points.total)
+
+                if current_margin_pts > highest_margin_team_pts:
+                    highest_margin_team_pts = current_margin_pts
+
+                    if team_list[0].team_points.total > team_list[1].team_points.total:
+                        winning_name = team_list[0].name
+                        winning_pts = team_list[0].team_points.total
+                        losing_name = team_list[1].name
+                        losing_pts = team_list[1].team_points.total
+                    else:
+                        winning_name = team_list[1].name
+                        winning_pts = team_list[1].team_points.total
+                        losing_name = team_list[0].name
+                        losing_pts = team_list[0].team_points.total
+
+        return (highest_margin_team_pts, winning_pts, losing_pts,winning_name,losing_name)
+
+
+    async def lowest_margin_win(self, matchups_list):
+        lowest_margin_team_pts = 10000
+        winning_name = ""
+        winning_pts = 0
+        losing_name = ""
+        losing_pts = 0
+
+            
+        for i in range(len(matchups_list)):
+            team_list = matchups_list[i].teams
+
+            if len(team_list) == 2:
+                current_margin_pts = abs(team_list[0].team_points.total - team_list[1].team_points.total)
+
+                if current_margin_pts < lowest_margin_team_pts:
+                    lowest_margin_team_pts = current_margin_pts
+
+                    if team_list[0].team_points.total > team_list[1].team_points.total:
+                        winning_name = team_list[0].name
+                        winning_pts = team_list[0].team_points.total
+                        losing_name = team_list[1].name
+                        losing_pts = team_list[1].team_points.total
+                    else:
+                        winning_name = team_list[1].name
+                        winning_pts = team_list[1].team_points.total
+                        losing_name = team_list[0].name
+                        losing_pts = team_list[0].team_points.total
+
+        return (lowest_margin_team_pts, winning_pts, losing_pts,winning_name,losing_name)
+
+
+    @app_commands.command(name="recap",description="Last week's recap.")
+    @app_commands.guilds(discord.Object(id=guild_id))
+    async def recap(self,interaction:discord.Interaction):
+        await interaction.response.defer()
+        newln = '\n'
+
+        async with self.bot.fantasy_query_lock:
+            fantasy_league = self.bot.fantasy_query.get_league()['league']
+
+        week = fantasy_league.current_week
+        last_week = week - 1
+
+        if last_week <= 0:
+            await interaction.followup.send("Error: Week 1 hasn't ended.",ephemeral=False)
+
+        async with self.bot.fantasy_query_lock:
+            matchups_list = self.bot.fantasy_query.get_scoreboard(last_week).matchups
+
+        # search for lowest points and highest
+        highest_scoring_team_pts, highest_scoring_team, highest_scoring_url = await self.highest_scoring(matchups_list)
+        highest_margin_pts, highest_margin_winner_pts, highest_margin_loser_pts,highest_margin_winning_name, highest_margin_losing_name = await self.highest_margin_win(matchups_list)
+
+        lowest_scoring_team_pts, lowest_scoring_team, lowest_scoring_url = await self.lowest_scoring(matchups_list)
+        lowest_margin_pts, lowest_margin_winner_pts, lowest_margin_loser_pts, lowest_margin_winning_name, lowest_margin_losing_name = await self.lowest_margin_win(matchups_list)
+
+            
+        # embed for each stat
+        embed = discord.Embed(title = f'Week {last_week} Recap', url="", description = '', color = self.emb_color) 
+
+        # highest scoring team
+        highest_scoring_team_decode = f"{highest_scoring_team.decode('utf-8')}"
+        highest_formated = f"{highest_scoring_team_decode:<30} {highest_scoring_team_pts:>5.2f}"
+        embed.add_field(name = f"Highest Scoring Team", value = utility.to_block(highest_formated), inline = False)  
+        embed.add_field(name = '\u200b', value = '\u200b', inline= False)   
+
+        # lowest scoring team
+        lowest_scoring_team_decode = lowest_scoring_team.decode('utf-8')
+        lowest_formated = f"{lowest_scoring_team_decode:<30} {lowest_scoring_team_pts:>5.2f}"
+        embed.add_field(name = f"Lowest Scoring Team", value = utility.to_block(lowest_formated), inline = False)
+        embed.add_field(name = '\u200b', value = '\u200b', inline= False)
+
+        # largest margin victory
+        highest_margin_winning_name_decode = f"{highest_margin_winning_name.decode('utf-8')}: "
+        highest_margin_winning_formated = f"{highest_margin_winning_name_decode:<30} {highest_margin_winner_pts:>5.2f}"
+        highest_margin_losing_name_decode = f"{highest_margin_losing_name.decode('utf-8')}: "
+        highest_margin_losing_formated = f"{highest_margin_losing_name_decode:<30} {highest_margin_loser_pts:>5.2f}"
+        embed.add_field(name = f"Largest Margin of Victory", 
+                        value = utility.to_block(f"{highest_margin_winning_formated}{newln}{highest_margin_losing_formated} "), 
+                        inline = True)
+        embed.add_field(name = '\u200b', value = utility.to_green_text(f"{highest_margin_pts:.2f}"), inline= True)
+        embed.add_field(name = '\u200b', value = '\u200b', inline= False)
+
+        # smallest margin victory
+        lowest_margin_winning_name_decode = f"{lowest_margin_winning_name.decode('utf-8')}:"
+        lowest_margin_winning_formated = f"{lowest_margin_winning_name_decode:<30} {lowest_margin_winner_pts:>5.2f}"
+        lowest_margin_losing_name_decode = f"{lowest_margin_losing_name.decode('utf-8')}:"
+        lowest_margin_losing_formated = f"{lowest_margin_losing_name_decode:<30} {lowest_margin_loser_pts:>5.2f}"
+        embed.add_field(name = f"Smallest Margin of Victory", 
+                        value = utility.to_block(f"{lowest_margin_winning_formated}{newln}{lowest_margin_losing_formated}"), 
+                        inline = True)
+        embed.add_field(name = '\u200b', value = utility.to_green_text(f"{lowest_margin_pts:.2f}"), inline= True)
+
+        await interaction.followup.send(embed = embed,ephemeral=False)
+
+
+    ###################################################
+    # Recap
+    ###################################################
+
+    async def log_season(self,fantasy_league_info):
+        #for every week log the matchup results
+        for i in range(fantasy_league_info.start_week, fantasy_league_info.end_week + 1):
+
+            async with self.bot.fantasy_query_lock:  
+                current_week_obj = self.bot.fantasy_query.get_scoreboard(i)
+
+            filename = f"week_{i}_matchup.json"
+            utility.store_matchups(current_week_obj,filename)
+
+
+    @tasks.loop(minutes=1440)
+    async def store_data(self):
+        await asyncio.sleep(15)
+        async with self.bot.fantasy_query_lock:
+            fantasy_league_info = self.bot.fantasy_query.get_league()['league']
+
+        end_date = fantasy_league_info.end_date
+        end_obj = datetime.datetime.strptime(end_date, '%Y-%m-%d').date() 
+        today_obj = datetime.date.today()
+
+        if end_obj < today_obj:
+            await self.log_season(fantasy_league_info)
+        else:
+            print('fantasy season has not ended')
+
+
+    @app_commands.command(name="season_recap",description="Season Recap.")
+    @app_commands.guilds(discord.Object(id=guild_id))
+    async def season_recap(self,interaction:discord.Interaction):
+        await interaction.response.defer()
+
+
+        await interaction.followup.send("Filler",ephemeral=False)
+
 
     ###################################################
     # Error Handling         

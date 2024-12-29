@@ -10,12 +10,77 @@ import csv
 current_dir = Path(__file__).parent
 
 
+EMPTY = '\u001b'
+
 def get_private_data():
 
     new_dict = {}
     with open(current_dir / 'discordauth'/ 'private.json','r') as file:
         data = json.load(file)
     return data
+
+
+###################################################
+# store obj
+###################################################
+
+def serialize_matchups(scoreboard):
+    def to_serializable(value):
+        if isinstance(value, bytes):
+            return value.decode('utf-8')
+        return value
+
+    matchups_dict = {}
+    matchups_list = scoreboard.matchups
+
+    for i in range(len(matchups_list)):
+        team_list = matchups_list[i].teams
+
+        individual_dict_1 = {}
+        individual_dict_2 = {}
+        if len(team_list) == 2:
+            individual_dict_1['name'] = to_serializable(team_list[0].name)
+            individual_dict_1['id'] = to_serializable(team_list[0].team_id)
+            individual_dict_1['points'] = team_list[0].team_points.total
+            individual_dict_1['week'] = team_list[0].team_points.week
+            individual_dict_1['team_key'] = to_serializable(team_list[0].team_key)
+            individual_dict_1['faab'] = team_list[0].faab_balance
+            individual_dict_1['opponent_id'] = to_serializable(team_list[1].team_id)
+            individual_dict_1['opponent_name'] = to_serializable(team_list[1].name)
+
+            individual_dict_2['name'] = to_serializable(team_list[1].name)
+            individual_dict_2['id'] = to_serializable(team_list[1].team_id)
+            individual_dict_2['points'] = team_list[1].team_points.total
+            individual_dict_2['week'] = team_list[1].team_points.week
+            individual_dict_2['team_key'] = to_serializable(team_list[1].team_key)
+            individual_dict_2['faab'] = team_list[1].faab_balance
+            individual_dict_2['opponent_id'] = to_serializable(team_list[0].team_id)
+            individual_dict_2['opponent_name'] = to_serializable(team_list[0].name)
+
+            matchups_dict[individual_dict_1['id']] = individual_dict_1
+            matchups_dict[individual_dict_2['id']] = individual_dict_2
+        else:
+            individual_dict_1['name'] = to_serializable(team_list[0].name)
+            individual_dict_1['id'] = to_serializable(team_list[0].team_id)
+            individual_dict_1['points'] = team_list[0].team_points.total
+            individual_dict_1['week'] = team_list[0].team_points.week
+            individual_dict_1['team_key'] = to_serializable(team_list[0].team_key)
+            individual_dict_1['faab'] = team_list[0].faab_balance
+            individual_dict_1['opponent_id'] = 'NONE'
+            individual_dict_1['opponent_name'] = 'NONE'
+
+    return matchups_dict
+
+ 
+def store_matchups(data, filename:str):
+    recap_dir = current_dir / 'recap'
+    os.makedirs(recap_dir,exist_ok=True)
+
+    serialized_data = serialize_matchups(data)
+
+    with open(current_dir / 'recap' / filename,'w') as file:
+        json.dump(serialized_data, file, indent = 2)
+
 
 ###################################################
 # player ID          
@@ -276,7 +341,7 @@ def arg_to_int(arg):
         print(f"{arg} is not a valid integer")
         return None
 
-def print(list):
+def print_list(list):
     for element in list:
         print(element)
         print('\n')
@@ -285,6 +350,9 @@ def print(list):
 def to_red_text(text):
     modified = string.capwords(text)
     return f"```ml\n- {modified}\n```"
+
+def to_green_text(text):
+    return f"```diff\n+{text}```"
 
 # all text blue
 def to_blue_text(text):
