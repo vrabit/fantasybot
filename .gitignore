@@ -11,4 +11,4 @@ __pycache__/
 
 # Ignore backups
 /persistent_data/backup.json
-
+/persistent_data/rss_queue.json
