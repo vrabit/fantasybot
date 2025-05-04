@@ -61,16 +61,16 @@ class SlapChallenge(commands.Cog):
         role = discord.utils.get(roles,name = role_name)
 
         if role is None:
-            print('Role doesn\'t exist.')
+            print('[SlapChallenge] - Role doesn\'t exist.')
             return
         
         try:
             await member.add_roles(role)
-            print(f'{member.display_name} assigned {role_name}')
+            print(f'[SlapChallenge] - {member.display_name} assigned {role_name}')
         except discord.Forbidden:
-            print(f'Do not have the necessary permissions to assign {role_name} role')
+            print(f'[SlapChallenge] - Do not have the necessary permissions to assign {role_name} role')
         except discord.HTTPException as e:
-            print(f'Failed to assign {role_name} role')
+            print(f'[SlapChallenge] - Failed to assign {role_name} role')
 
     async def remove_role_members(self,role_name:str):
         async with self.channel_id_lock:
@@ -217,7 +217,7 @@ class SlapChallenge(commands.Cog):
         # check if season is over
         start_date = loaded_dates.get(str(current_week))
         if start_date is None:
-            print('Season Ended')
+            print('[SlapChallenge] - Season Ended')
             return
 
         # get last weeks end date and compare to today-1 
@@ -251,16 +251,16 @@ class SlapChallenge(commands.Cog):
             role = discord.utils.get(roles,name = role_name)
 
             if role is None:
-                print('Role doesn\'t exist.')
+                print('[SlapChallenge] - Role doesn\'t exist.')
                 return
             
             try:
                 await member.add_roles(role)
-                print(f'{member.display_name} assigned {role_name}')
+                print(f'[SlapChallenge] - {member.display_name} assigned {role_name}')
             except discord.Forbidden:
-                print(f'Do not have the necessary permissions to assign {role_name} role')
+                print(f'[SlapChallenge] - Do not have the necessary permissions to assign {role_name} role')
             except discord.HTTPException as e:
-                print(f'Failed to assign {role_name} role')
+                print(f'[SlapChallenge] - Failed to assign {role_name} role')
 
 
         async def on_timeout(self):
@@ -343,7 +343,7 @@ class SlapChallenge(commands.Cog):
 
         start_date = loaded_dates.get(str(current_week))
         if start_date is None:
-            print('Season Ended')
+            print('[SlapChallenge] - Season Ended')
             return
 
         start_date = datetime.datetime.strptime(start_date[0], '%Y-%m-%d').date()
@@ -386,7 +386,7 @@ class SlapChallenge(commands.Cog):
         else:
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
             # Log the error or print details for debugging
-            print(f"Error: {error}")
+            print(f"[SlapChallenge] - Error: {error}")
 
     ###################################################
     # Handle Exit           
@@ -401,10 +401,10 @@ class SlapChallenge(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print('SlapChallenge - Setup ..')
+        print('[SlapChallenge] - Setup SlapChallenge')
 
     def cog_unload(self):
-        print('Slap Challenge - Cog Unload')
+        print('[SlapChallenge] - Cog Unload')
 
 
 async def setup(bot):

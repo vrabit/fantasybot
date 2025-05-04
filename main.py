@@ -52,12 +52,12 @@ bot.guild = guild
 
 async def setup_session():
     async with bot.session_lock:
-        print('aiohttp Session Started')
+        print('[Main_Setup] - aiohttp Session Started')
         bot.session = aiohttp.ClientSession()
 
 async def close_session():
     async with bot.session_lock: 
-        print('aiohttp Session Closed')   
+        print('[Main_Setup] - aiohttp Session Closed')   
         await bot.session.close()
         bot.session = None
 
@@ -78,14 +78,14 @@ async def reload_extensions():
 @commands.is_owner()
 async def clear_global_commands(ctx:commands.Context)->None:
     ctx.bot.tree.clear_commands(guild=guild)
-    print('Cleared global commands.')
+    print('[Main_Setup] - Cleared global commands.')
 
 @bot.command()
 @commands.guild_only()
 @commands.is_owner()
 async def clear_guild_commands(ctx:commands.Context)->None:
     ctx.bot.tree.clear_commands(guild=ctx.guild)
-    print('Cleared guild commands.')
+    print('[Main_Setup] - Cleared guild commands.')
 
 @bot.command()
 @commands.guild_only()
@@ -93,18 +93,18 @@ async def clear_guild_commands(ctx:commands.Context)->None:
 async def sync(ctx:commands.Context)->None:
     try:
         commands = await ctx.bot.tree.sync(guild=ctx.guild)
-        print(f"{len(commands)} Commands synced to guild: {ctx.guild.id}")
+        print(f"[Main_Setup] - {len(commands)} Commands synced to guild: {ctx.guild.id}")
         await ctx.send(f"Synced the tree.")
     except discord.HTTPException as e:
-        print(f"HTTPException: Failed to sync commands for guild {ctx.guild.id} due to an HTTP error: {e}")
+        print(f"[Main_Setup] - HTTPException: Failed to sync commands for guild {ctx.guild.id} due to an HTTP error: {e}")
     except discord.CommandSyncFailure as e:
-        print(f"CommandSyncFailure: Command sync failed for guild {ctx.guild.id} - possibly invalid command data: {e}")
+        print(f"[Main_Setup] - CommandSyncFailure: Command sync failed for guild {ctx.guild.id} - possibly invalid command data: {e}")
     except discord.Forbidden:
-        print(f"Forbidden: Bot lacks the 'applications.commands' scope for guild {ctx.guild.id}. Check permissions.")
+        print(f"[Main_Setup] - Forbidden: Bot lacks the 'applications.commands' scope for guild {ctx.guild.id}. Check permissions.")
     except discord.MissingApplicationID:
-        print("MissingApplicationID: Bot is missing an application ID. Ensure it's set properly.")
+        print("[Main_Setup] - MissingApplicationID: Bot is missing an application ID. Ensure it's set properly.")
     except discord.TranslationError as e:
-        print(f"TranslationError: A translation issue occurred while syncing commands: {e}")
+        print(f"[Main_Setup] - TranslationError: A translation issue occurred while syncing commands: {e}")
     
 
 
@@ -112,9 +112,7 @@ async def sync(ctx:commands.Context)->None:
 async def on_ready():
     #print('Sync bot tree.')
     #bot.tree.clear_commands(guild=guild)
-
-
-    print(guild)
+    print('[Main_Setup] - Bot is ready.')
     pass
 
 
@@ -126,12 +124,12 @@ async def shutdown():
     try:
         await bot.close()
     except Exception as e:
-        print ('Error during shutdown: {e}')
+        print ('[Main_Setup] - Error during shutdown: {e}')
 
 def handle_exit(signal_received, frame):
-    print(f'\nSignal {signal_received}.')
-    print(f'Current Function: {frame.f_code.co_name}')
-    print(f'Line number: {frame.f_lineno}\n')
+    print(f'\n[Main_Setup] - Signal {signal_received}.')
+    print(f'[Main_Setup] - Current Function: {frame.f_code.co_name}')
+    print(f'[Main_Setup] - Line number: {frame.f_lineno}\n')
     
     bot.loop.create_task(close_session())
     bot.loop.create_task(shutdown())
@@ -143,7 +141,7 @@ signal.signal(signal.SIGTERM,handle_exit)
 async def load_Test():
     for filename in os.listdir('./cogs'):
         if filename.startswith('MaintainFantasy') or filename.startswith('RSS'):
-            print(f'Loaded {filename}')
+            print(f'[Main_Setup] - Loaded {filename}')
             await bot.load_extension(f'cogs.{filename[:-3]}')
 
 async def load_extensions():
@@ -151,11 +149,11 @@ async def load_extensions():
     for filename in os.listdir('./cogs'):
         if filename.endswith('py') and not filename.startswith('__'):
             await bot.load_extension(f'cogs.{filename[:-3]}')
-            print(f'Loaded {filename}')
+            print(f'[Main_Setup] - Loaded {filename}')
 
 
 async def setup_hook():
-    print(bot.tree.get_commands(guild=guild))
+    print(f'[Main_Setup] - {bot.tree.get_commands(guild=guild)}')
     await setup_session()
     await load_extensions()
 

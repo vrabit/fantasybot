@@ -60,7 +60,7 @@ class FantasyQuery(commands.Cog):
         directory = self.parent_dir / 'cogs'
         for filename in directory:
             if filename.is_file() and filename.endswith('py') and not filename.startswith('__'):
-                print(f'Reload {filename}')
+                print(f'[FantasyQuery] - Reload {filename}')
                 await self.bot.load_extension(f'cogs.{filename[:-3]}')
             await interaction.response.send_message(f'Reload Done')
 
@@ -900,7 +900,7 @@ class FantasyQuery(commands.Cog):
         if end_obj < today_obj:
             await self.log_season(fantasy_league_info)
         else:
-            print('fantasy season has not ended')
+            print('[FantasyQuery] - fantasy season has not ended')
 
 
     @app_commands.command(name="season_recap",description="Season Recap.")
@@ -924,7 +924,7 @@ class FantasyQuery(commands.Cog):
         else:
             await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
             # Log the error or print details for debugging
-            print(f"Error: {error}")
+            print(f"[FantasyQuery] Error: {error}")
 
 
     ###################################################
@@ -941,7 +941,7 @@ class FantasyQuery(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         self.setup_discord()
-        print('Channels Set Up!')
+        print('[FantasyQuery] - Channels Set Up!')
 
 
     ###################################################
@@ -949,7 +949,7 @@ class FantasyQuery(commands.Cog):
     ###################################################
 
     def cog_unload(self):
-        print('FantasyQuery - Cog Unload')
+        print('[FantasyQuery] - Cog Unload')
 
 async def setup(bot):
     await bot.add_cog(FantasyQuery(bot))

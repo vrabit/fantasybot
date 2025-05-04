@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 data = utility.get_private_data()
@@ -30,6 +30,7 @@ class TradeValue(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
         self.trade_value.start()
+        self.date = None
 
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
@@ -38,8 +39,10 @@ class TradeValue(commands.Cog):
         self.emb_color = discord.Color.from_rgb(225, 198, 153)
         self.discord_grey = '#424549'
 
-        self.player_values = self.request_values()
-        self.value_map = self.format_values(self.player_values)
+        self.player_values_lock = asyncio.Lock()
+        self.value_map_lock = asyncio.Lock()
+        self.player_values = None
+        self.value_map = None
 
         self.MAX_QUEUE = 5
         self.trades_sends = {}
@@ -50,20 +53,11 @@ class TradeValue(commands.Cog):
         try:
             player_values = response.json()
         except ValueError:
-            print("Error: Received invalid response from api.fantasycalc")
+            print("[TradeValue] - Error: Received invalid response from api.fantasycalc")
         except Exception as e:
-            print(f'Error: {e}')
+            print(f'[TradeValue] - Error: {e}')
 
         return player_values
-    
-    def update_values(self, url="https://api.fantasycalc.com/values/current?isDynasty=false&numQbs=1&numTeams=10&ppr=0.5"):
-        response = requests.get(url)
-        try:
-            self.player_values = response.json()
-        except ValueError:
-            print("Error: Received invalid response from api.fantasycalc")
-        except Exception as e:
-            print(f'Error: {e}')
 
     def format_values(self,player_values):
         trade_values_map = {}
@@ -135,13 +129,14 @@ class TradeValue(commands.Cog):
 
         return newArr
 
-    def get_names_values(self, players:deque):
+    async def get_names_values(self, players:deque):
         player_names = deque(maxlen=self.MAX_QUEUE)
         player_values = deque(maxlen=self.MAX_QUEUE)
 
         while players:
             player_name = players.pop()
-            player_obj = self.value_map[player_name]
+            async with self.value_map_lock:
+                player_obj = self.value_map[player_name]
 
             player_names.append(player_obj['player']['name'])
             player_values.append(player_obj['value'])
@@ -157,8 +152,8 @@ class TradeValue(commands.Cog):
             sends = self.trades_sends[discord_user]
             receives = self.trades_receives[discord_user]
 
-            sends_names, sends_values = self.get_names_values(sends)
-            receives_names, receives_values = self.get_names_values(receives)
+            sends_names, sends_values = await self.get_names_values(sends)
+            receives_names, receives_values = await self.get_names_values(receives)
 
             # values list from deque
             sends_values_list= list(sends_values)
@@ -247,7 +242,8 @@ class TradeValue(commands.Cog):
     async def trade_send(self,interaction:discord.Interaction,player:str):
         await interaction.response.defer(ephemeral=True)
 
-        closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
+        async with self.value_map_lock:
+            closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
         if len(closest_key) == 0:
             await interaction.followup.send(f"Failed to match player")
         else:
@@ -264,7 +260,8 @@ class TradeValue(commands.Cog):
     async def trade_receive(self,interaction:discord.Interaction,player:str):
         await interaction.response.defer(ephemeral=True)
 
-        closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
+        async with self.value_map_lock:
+            closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
         if len(closest_key) == 0:
             await interaction.followup.send(f"Failed to match player")
         else:
@@ -275,7 +272,7 @@ class TradeValue(commands.Cog):
             await message.delete()
 
 
-    @app_commands.command(name="compare_value",description="Add player to receive side for comparison")
+    @app_commands.command(name="compare_value",description="Evaluate trade value")
     @app_commands.guilds(discord.Object(id=guild_id))
     async def compare_value(self,interaction:discord.Interaction):
         await interaction.response.defer(ephemeral=False)
@@ -313,13 +310,21 @@ class TradeValue(commands.Cog):
 
 
     ###################################################
-    # check if new week         
+    # Update values every 24 hours      
     ###################################################
 
     @tasks.loop(minutes=1440)
     async def trade_value(self):
-        print('     trade Values')
-        print('     trade Values .. Done')
+        current_date = datetime.today() 
+        if self.date == None or self.date == current_date - timedelta(days = 1):
+            print('[TradeValue] - Updating Trade Values')
+            async with self.player_values_lock:
+                self.player_values = self.request_values()
+
+                async with self.value_map_lock:
+                    self.value_map = self.format_values(self.player_values)
+            self.date = current_date
+            print('[TradeValue] - trade Values .. Done')
 
 
 
@@ -330,7 +335,7 @@ class TradeValue(commands.Cog):
     
     @commands.Cog.listener()
     async def on_ready(self): 
-        print('trade Initialized\n  ..')
+        print('[TradeValue] - Initialized TradeValue')
 
 
     ###################################################
@@ -339,7 +344,7 @@ class TradeValue(commands.Cog):
 
     def cog_unload(self):
         self.trade_value.cancel()
-        print('TradeValue - Cog Unload')
+        print('[TradeValue] - Cog Unload')
 
 
 

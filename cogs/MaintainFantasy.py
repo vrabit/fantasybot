@@ -24,7 +24,7 @@ class MaintainFantasy(commands.Cog):
 
     @tasks.loop(minutes=60)
     async def refresh_fantasy(self):
-        print('     Refreshing Fantasy Object')
+        print('[MaintainFantasy] - Refreshing Fantasy Object')
         async with self.bot.fantasy_query_lock:
             # set directory location of private.json for authentication
             auth_dir = self.parent_dir / 'yfpyauth' 
@@ -35,6 +35,7 @@ class MaintainFantasy(commands.Cog):
             with open(auth_dir / 'private.json') as file:
                 private_data = json.load(file)
 
+            # game_id = None, defaults to the game ID for the current year.
             yahoo_query = YahooFantasySportsQuery(
                 auth_dir,
                 config_data.get('league_id'),
@@ -47,7 +48,7 @@ class MaintainFantasy(commands.Cog):
             )
 
             self.bot.fantasy_query = fantasyQuery(yahoo_query)
-        print('     .. Done')
+        print('[MaintainFantasy] - .. Done')
 
 
     ###################################################
@@ -57,7 +58,7 @@ class MaintainFantasy(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         
-        print('Yahoo Fantasy Initialized\n  ..')
+        print('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
 
 
     ###################################################
@@ -66,7 +67,7 @@ class MaintainFantasy(commands.Cog):
 
     def cog_unload(self):
         self.refresh_fantasy.cancel()
-        print('MaintainFantasy - Cog Unload')
+        print('[MaintainFantasy] - Cog Unload')
 
 
 

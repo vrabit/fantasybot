@@ -40,7 +40,7 @@ class RSSHandler(commands.Cog):
 
         if not self.poll_rss.is_running():
             self.poll_rss.start()
-            print(' Polling Started\n')
+            print('[RSSHandler] - Polling Started')
 
 
     ###################################################
@@ -61,13 +61,13 @@ class RSSHandler(commands.Cog):
                 return deque(entries, maxlen=self.MAX_QUEUE)
 
     async def fetch_rss(self,session,url):
-        print(session)
+        print('[RSSHandler] - Fetching RSS')
         async with session.get(url) as response:
             response_text = await response.text()
             return response_text
 
     async def send_rss(self,value):
-        print('\n\nSend RSS')
+        print('[RSSHandler] - Sending RSS')
         async with self.news_id_lock:
             local_id = self.news_channel_id
         
@@ -76,7 +76,7 @@ class RSSHandler(commands.Cog):
         if channel is None:
             channel = await self.bot.fetch_channel(int(local_id))
 
-        print(f'channel : {channel}')
+        print(f'[RSSHandler] -Send channel : {channel}')
         title = next(iter(value))
         detail=value[title][0]
         page_url=value[title][1]
@@ -92,6 +92,7 @@ class RSSHandler(commands.Cog):
     async def poll_rss(self,url='https://www.rotowire.com/rss/news.php?sport=NFL'):
         # wait to make sure session is set up
         await asyncio.sleep(10)
+        print('[RSSHandler][Poll_RSS] - Started')
 
         loaded_queue = await self.load_queue('rss_queue.json')
         async with self.feed_queue_lock:
@@ -100,8 +101,12 @@ class RSSHandler(commands.Cog):
         #response = await self.fetch_rss(self.session,url)
         async with self.bot.session.get(url) as response:
             response_text = await response.text()
-
+            
             content = feedparser.parse(response_text)
+            if content.bozo:
+                print('[RSSHandler][Poll_RSS] - Error parsing RSS feed')
+                return
+
             async with self.feed_queue_lock:
                 for entry in content.entries:    
                     if len(self.feed_queue) == 0:
@@ -116,7 +121,8 @@ class RSSHandler(commands.Cog):
                         if not found:
                             await self.send_rss({entry.get('title'):(entry.get('summary'),entry.get('link'))})
                             self.feed_queue.append({entry.get('title'):(entry.get('summary'),entry.get('link'))})
-
+        
+        print('[RSSHandler][Poll_RSS] - .. Done')
         await self.save_queue('rss_queue.json')
 
 
@@ -132,11 +138,11 @@ class RSSHandler(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        print('RSS Setup .. ')
+        print('[RSSHandler] - RSS Setup .. ')
 
         async with self.bot.fantasy_query_lock:
             utility.init_memlist(self.bot.fantasy_query.get_teams())
-            print(' init memlist')
+            print('[RSSHandler] - init memlist')
 
     ###################################################
     # Handle Exit           
@@ -145,7 +151,7 @@ class RSSHandler(commands.Cog):
 
 
     def cog_unload(self):
-        print('RSS - Cog Unload')
+        print('[RSSHandler] - Cog Unload')
         self.poll_rss.cancel()
         self.bot.loop.create_task(self.save_queue())
 
