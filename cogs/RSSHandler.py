@@ -5,7 +5,6 @@ from pathlib import Path
 import asyncio
 import json
 import os
-import signal
 from collections import deque
 
 import aiohttp 
@@ -22,10 +21,6 @@ class RSSHandler(commands.Cog):
 
         # bot embed color
         self.emb_color = discord.Color.from_rgb(225, 198, 153)
-
-        # RSS constants 
-        self.session = None
-        self.session_lock = asyncio.Lock()
 
         self.rssURL = 'https://www.rotowire.com/rss/news.php?sport=NFL'
         self.update_interval = 600.0
@@ -76,7 +71,7 @@ class RSSHandler(commands.Cog):
         if channel is None:
             channel = await self.bot.fetch_channel(int(local_id))
 
-        print(f'[RSSHandler] -Send channel : {channel}')
+        print(f'[RSSHandler] - Send channel : {channel}')
         title = next(iter(value))
         detail=value[title][0]
         page_url=value[title][1]
@@ -99,7 +94,7 @@ class RSSHandler(commands.Cog):
             self.feed_queue = loaded_queue
 
         #response = await self.fetch_rss(self.session,url)
-        async with self.bot.session.get(url) as response:
+        async with self.bot.state.session.get(url) as response:
             response_text = await response.text()
             
             content = feedparser.parse(response_text)
@@ -131,31 +126,38 @@ class RSSHandler(commands.Cog):
     ###################################################
 
     def setup_RSS(self):
-        with open(self.parent_dir / 'discordauth'/ 'private.json', 'r') as file:
-            data = json.load(file)
+        # load private data 
+        data = utility.get_private_data()
 
+        raw_data = data.get('news_channel_id')
+        if raw_data is None:
+            print('[RSSHandler] - No news channel ID found')
+            return None
+        else:
+            try:
+                int(raw_data)
+            except ValueError:
+                print('[RSSHandler] - Invalid news channel ID')
+                return None
         return int(data.get('news_channel_id'))
 
     @commands.Cog.listener()
     async def on_ready(self):
         print('[RSSHandler] - RSS Setup .. ')
 
-        async with self.bot.fantasy_query_lock:
+        async with self.bot.state.fantasy_query_lock:
             utility.init_memlist(self.bot.fantasy_query.get_teams())
-            print('[RSSHandler] - init memlist')
+            print('[RSSHandler] - Initialize Member List')
+
 
     ###################################################
     # Handle Exit           
     ###################################################
 
-
-
     def cog_unload(self):
         print('[RSSHandler] - Cog Unload')
         self.poll_rss.cancel()
         self.bot.loop.create_task(self.save_queue())
-
-        
 
 
 async def setup(bot):

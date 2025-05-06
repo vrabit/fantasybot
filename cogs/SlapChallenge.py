@@ -104,7 +104,7 @@ class SlapChallenge(commands.Cog):
 
         # add to array for the future
         if member_storage[int(challenger_key) - 1] is None:
-            async with self.bot.fantasy_query_lock:
+            async with self.bot.state.fantasy_query_lock:
                 challenger_stats = self.bot.fantasy_query.get_team_stats(current_week,int(challenger_key))
             member_storage[int(challenger_key) - 1] = challenger_stats
         else:
@@ -122,7 +122,7 @@ class SlapChallenge(commands.Cog):
 
             # add to array for the future
             if member_storage[int(challengee_team_id) - 1] is None:
-                async with self.bot.fantasy_query_lock:
+                async with self.bot.state.fantasy_query_lock:
                     challengee_stats = self.bot.fantasy_query.get_team_stats(current_week, int(challengee_team_id))
                 member_storage[int(challengee_team_id) - 1] = challengee_stats
             else:
@@ -177,7 +177,7 @@ class SlapChallenge(commands.Cog):
         loaded_dates = utility.load_dates()
 
         # current week
-        async with self.bot.fantasy_query_lock:
+        async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.fantasy_query.get_league()['league']   
             
         current_week = fantasy_league.current_week
@@ -201,14 +201,14 @@ class SlapChallenge(commands.Cog):
         # if does not exist, create and store dates list
         exists = os.path.exists(date_file)
         if not exists:
-            async with self.bot.fantasy_query_lock:
+            async with self.bot.state.fantasy_query_lock:
                 dates_list = utility.construct_date_list(self.fantasy_query.get_game_weeks()['game_weeks'])
             utility.store_dates(dates_list)
 
         # load dates list
         loaded_dates = utility.load_dates()
 
-        async with self.bot.fantasy_query_lock:
+        async with self.bot.state.fantasy_query_lock:
             # current week
             fantasy_league = self.bot.fantasy_query.get_league()['league']   
         current_week = fantasy_league.current_week
@@ -336,7 +336,7 @@ class SlapChallenge(commands.Cog):
         # add challenges if not on the start date
         loaded_dates = utility.load_dates()
 
-        async with self.bot.fantasy_query_lock:
+        async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.fantasy_query.get_league()['league']
 
         current_week = fantasy_league.current_week

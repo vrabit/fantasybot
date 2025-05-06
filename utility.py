@@ -6,18 +6,44 @@ import string
 from collections import deque
 
 import csv
+import asyncio
 
 current_dir = Path(__file__).parent
 
 
 EMPTY = '\u001b'
+private_lock = asyncio.Lock()
 
+
+###################################################
+# load and store private.json file
+###################################################
+
+# only used for initialization of bot and cogs
 def get_private_data():
-
-    new_dict = {}
+    # load private.json file
     with open(current_dir / 'discordauth'/ 'private.json','r') as file:
         data = json.load(file)
     return data
+
+def store_private_data(data):
+    # store private.json file
+    with open(current_dir / 'discordauth'/ 'private.json','w') as file:
+        json.dump(data, file, indent = 4)
+
+# used for async access to private.json file
+async def get_private_data_async():
+    async with private_lock:
+        # load private.json file
+        with open(current_dir / 'discordauth'/ 'private.json','r') as file:
+            data = json.load(file)
+    return data
+
+async def store_private_data_async(data):
+    async with private_lock:
+        # store private.json file
+        with open(current_dir / 'discordauth'/ 'private.json','w') as file:
+            json.dump(data, file, indent = 4)
 
 
 ###################################################
@@ -111,14 +137,15 @@ def load_members():
 
     return members
 
+
 def number_of_teams():
     with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
         members = json.load(file)
 
     return len(members)
 
+
 def init_memlist(teams):
-    
     # Create member list file
     if not os.path.exists(current_dir / 'persistent_data'/ 'members.json'):
         members = []
@@ -141,6 +168,7 @@ def init_memlist(teams):
         with open(current_dir / 'persistent_data'/ 'members.json', 'w') as file:
             json.dump(members, file, indent = 4)
 
+
 def create_stat_file(categories):
     entry = {}
     for i in range(len(categories.stats)):
@@ -160,11 +188,13 @@ def load_dates():
 
     return dates_list
 
+
 def store_dates(dates_dict):
     date_file = current_dir / 'persistent_data' / 'week_dates.json'
 
     with open(date_file, 'w') as file:
         json.dump(dates_dict, file, indent = 4)
+
 
 def construct_date_list(gameweek_list):
     dates_dict = {}
@@ -182,6 +212,7 @@ def construct_date_list(gameweek_list):
 def clear_challenges():
     with open(current_dir/ 'persistent_data'/ 'challenges.json', 'w') as file:
         json.dump({},file)
+
 
 def load_challenges():
     challenges_file = current_dir/ 'persistent_data'/ 'challenges.json'
@@ -201,6 +232,7 @@ def load_challenges():
 
     return challenges
 
+
 def save_challenges(challenges):
     serializable = {}
     for key, value in challenges.items():
@@ -209,8 +241,10 @@ def save_challenges(challenges):
     with open(current_dir/ 'persistent_data'/ 'challenges.json', 'w') as file:
         json.dump(serializable, file, indent = 4)
 
+
 def check_queue_exists(queue, team_id):
     return team_id in queue
+
 
 def check_exists(challenger_team_id, challengee_team_id, challenges):
     challenger_queue = challenges.get(challenger_team_id)
@@ -223,6 +257,7 @@ def check_exists(challenger_team_id, challengee_team_id, challenges):
         return True
     
     return False
+
 
 def add_challenges(challenger_team_id, challengee_team_id):
     # load challenges
@@ -255,12 +290,15 @@ def bind_discord( draft_id, discord_id):
     with open(current_dir / 'persistent_data'/ 'members.json', 'w') as file:
         json.dump(members, file, indent = 4)
 
+
 def compose_player_key(game_key, player_id):
     return f'{game_key}.p.{player_id}'
+
 
 def format_member(member,id):
     new_mem = {str(member): str(id)}
     return new_mem
+
 
 def append_memlist_member(member, id):
     with open(current_dir / 'persistent_data'/ 'members.json', 'r') as read_file:
@@ -270,6 +308,7 @@ def append_memlist_member(member, id):
 
     with open(current_dir / 'persistent_data'/ 'members.json','w') as write_file:
         json.dump(members, write_file, indent = 4)
+
 
 def teamid_to_discord(team_id):
     with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
@@ -281,6 +320,7 @@ def teamid_to_discord(team_id):
         
     return None
 
+
 def teamid_to_name(team_id):
     with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
         members = json.load(file)
@@ -291,6 +331,7 @@ def teamid_to_name(team_id):
         
     return None
 
+
 def discord_to_teamid(discord_id):
     with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
         members = json.load(file)
@@ -300,6 +341,7 @@ def discord_to_teamid(discord_id):
             return members[i].get('id')
         
     return None
+
 
 def discord_to_name(discord_id):
     with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
@@ -315,6 +357,7 @@ def discord_to_name(discord_id):
 def id_to_mention(user):
     return '<@'+str(user) + '>'
 
+
 def list_to_mention(member_list):
     message = ''
     for i in range(len(member_list)):
@@ -323,6 +366,7 @@ def list_to_mention(member_list):
         else:
             message += id_to_mention(member_list[i]) + ' '
     return message
+
 
 def list_to_str(arg_list):
     message = ''
@@ -333,6 +377,7 @@ def list_to_str(arg_list):
             message += arg_list[i].capitalize() + ' '
     return message
 
+
 def arg_to_int(arg):
     try:
         to_int = int(arg)
@@ -341,25 +386,31 @@ def arg_to_int(arg):
         print(f"{arg} is not a valid integer")
         return None
 
+
 def print_list(list):
     for element in list:
         print(element)
         print('\n')
+
 
 # Capitalizes words - numbers are blue
 def to_red_text(text):
     modified = string.capwords(text)
     return f"```ml\n- {modified}\n```"
 
+
 def to_green_text(text):
     return f"```diff\n+{text}```"
+
 
 # all text blue
 def to_blue_text(text):
     return f"```glsl\n{text}\n```"
 
+
 def to_block(text):
     return f"```text\n{text}```"
+
 
 def list_to_block(text_list):
     text = ''

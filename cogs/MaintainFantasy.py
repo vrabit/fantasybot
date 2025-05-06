@@ -3,9 +3,7 @@ from discord.ext import tasks, commands
 
 from pathlib import Path
 
-import asyncio
 import json
-import signal
 
 from yfpy.query import YahooFantasySportsQuery
 from fantasy import fantasyQuery
@@ -25,7 +23,7 @@ class MaintainFantasy(commands.Cog):
     @tasks.loop(minutes=60)
     async def refresh_fantasy(self):
         print('[MaintainFantasy] - Refreshing Fantasy Object')
-        async with self.bot.fantasy_query_lock:
+        async with self.bot.state.fantasy_query_lock:
             # set directory location of private.json for authentication
             auth_dir = self.parent_dir / 'yfpyauth' 
 

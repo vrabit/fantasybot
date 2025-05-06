@@ -324,7 +324,7 @@ class TradeValue(commands.Cog):
                 async with self.value_map_lock:
                     self.value_map = self.format_values(self.player_values)
             self.date = current_date
-            print('[TradeValue] - trade Values .. Done')
+            print('[TradeValue] - Trade Values .. Done')
 
 
 

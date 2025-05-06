@@ -1,20 +1,14 @@
 import discord
-from discord.ext import tasks, commands
+from discord.ext import  commands
 
-import json
 from pathlib import Path
 
-from yfpy.query import YahooFantasySportsQuery
-from yfpy import Data
-
-from fantasy import fantasyQuery
 import os
+import json
 
 import signal
 import asyncio
 import aiohttp 
-
-from collections import deque
 
 import utility
 
@@ -42,24 +36,32 @@ intents.message_content = True
 bot = commands.Bot(command_prefix= "$", intents = intents, application_id = app_id)
 
 
-# Shared resources and locks
-bot.fantasy_query = None
-bot.fantasy_query_lock = asyncio.Lock()
-bot.session = None
-bot.session_lock = asyncio.Lock()
-bot.guild_id = guild_id
-bot.guild = guild
+class BotState:
+    def __init__(self,guild_id:int = None, guild:discord.Object = None):
+        # Shared resources and locks
+        self.fantasy_query = None
+        self.fantasy_query_lock = asyncio.Lock()
+        self.session = None
+        self.session_lock = asyncio.Lock()
+        self.guild_id = guild_id
+        self.guild = guild
+
+
+bot.state = BotState(guild_id=guild_id, guild=guild)
+
 
 async def setup_session():
-    async with bot.session_lock:
+    async with bot.state.session_lock:
         print('[Main_Setup] - aiohttp Session Started')
-        bot.session = aiohttp.ClientSession()
+        bot.state.session = aiohttp.ClientSession()
+
 
 async def close_session():
-    async with bot.session_lock: 
+    async with bot.state.session_lock: 
         print('[Main_Setup] - aiohttp Session Closed')   
-        await bot.session.close()
-        bot.session = None
+        await bot.state.session.close()
+        bot.state.session = None
+
 
 async def reload_extensions():
     # load all cogs
@@ -110,8 +112,20 @@ async def sync(ctx:commands.Context)->None:
 
 @bot.event
 async def on_ready():
-    #print('Sync bot tree.')
-    #bot.tree.clear_commands(guild=guild)
+    try:
+        await bot.tree.sync(guild=guild)
+        print(f'[Main_Setup] - Synced commands to guild: {guild.id}')
+    except discord.HTTPException as e:
+        print(f"[Main_Setup] - HTTPException: Failed to sync commands for guild {guild.id} due to an HTTP error: {e}")
+    except discord.CommandSyncFailure as e:
+        print(f"[Main_Setup] - CommandSyncFailure: Command sync failed for guild {guild.id} - possibly invalid command data: {e}")
+    except discord.Forbidden:
+        print(f"[Main_Setup] - Forbidden: Bot lacks the 'applications.commands' scope for guild {guild.id}. Check permissions.")
+    except discord.MissingApplicationID:                    
+        print("[Main_Setup] - MissingApplicationID: Bot is missing an application ID. Ensure it's set properly.")
+    except discord.TranslationError as e:
+        print(f"[Main_Setup] - TranslationError: A translation issue occurred while syncing commands: {e}")
+
     print('[Main_Setup] - Bot is ready.')
     pass
 
