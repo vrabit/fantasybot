@@ -55,7 +55,6 @@ class MaintainFantasy(commands.Cog):
     
     @commands.Cog.listener()
     async def on_ready(self):
-        
         print('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
 
 

@@ -11,12 +11,6 @@ from difflib import get_close_matches
 
 import datetime
 
-data = utility.get_private_data()
-
-# Decorator guild_id
-#guild_id = int(data.get('guild_id'))
-
-
 
 class FantasyQuery(commands.Cog):
     def __init__(self,bot):
@@ -32,7 +26,7 @@ class FantasyQuery(commands.Cog):
         self.store_data.start()
 
         # bot embed color
-        self.emb_color = discord.Color.from_rgb(225, 198, 153)
+        self.emb_color = self.bot.state.emb_color
 
 
     ###################################################
@@ -908,6 +902,17 @@ class FantasyQuery(commands.Cog):
 
 
     ###################################################
+    # Handle Load          
+    ###################################################
+
+    async def cog_load(self):
+        print('[FantasyQuery] - Cog Load .. ')
+        guild = discord.Object(id=self.bot.state.guild_id)
+        for command in self.get_app_commands():
+            self.bot.tree.add_command(command, guild=guild)
+        
+
+    ###################################################
     # Handle Startup          
     ###################################################
 
@@ -930,14 +935,6 @@ class FantasyQuery(commands.Cog):
         else:
             async with self.news_id_lock:
                 self.news_channel_id = int(raw_news_channel_id)
-
-
-    async def cog_load(self):
-        print('[FantasyQuery] - Cog Load .. ')
-        guild = discord.Object(id=self.bot.state.guild_id)
-        for command in self.get_app_commands():
-            self.bot.tree.add_command(command, guild=guild)
-        
 
     @commands.Cog.listener()
     async def on_ready(self):

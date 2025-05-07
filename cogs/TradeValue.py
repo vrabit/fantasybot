@@ -21,11 +21,6 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 
-data = utility.get_private_data()
-
-# Decorator guild_id
-guild_id = int(data.get('guild_id'))
-
 class TradeValue(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
@@ -36,7 +31,7 @@ class TradeValue(commands.Cog):
         self.parent_dir = self.current_dir.parent
 
         # bot embed color
-        self.emb_color = discord.Color.from_rgb(225, 198, 153)
+        self.emb_color = self.bot.state.emb_color
         self.discord_grey = '#424549'
 
         self.player_values_lock = asyncio.Lock()
@@ -238,7 +233,6 @@ class TradeValue(commands.Cog):
 
     @app_commands.command(name="trade_send",description="Add player to sender side for comparison")
     @app_commands.describe(player="NFL player name")
-    @app_commands.guilds(discord.Object(id=guild_id))
     async def trade_send(self,interaction:discord.Interaction,player:str):
         await interaction.response.defer(ephemeral=True)
 
@@ -256,7 +250,6 @@ class TradeValue(commands.Cog):
 
     @app_commands.command(name="trade_receive",description="Add player to receive side for comparison")
     @app_commands.describe(player="NFL player name")
-    @app_commands.guilds(discord.Object(id=guild_id))
     async def trade_receive(self,interaction:discord.Interaction,player:str):
         await interaction.response.defer(ephemeral=True)
 
@@ -273,7 +266,6 @@ class TradeValue(commands.Cog):
 
 
     @app_commands.command(name="compare_value",description="Evaluate trade value")
-    @app_commands.guilds(discord.Object(id=guild_id))
     async def compare_value(self,interaction:discord.Interaction):
         await interaction.response.defer(ephemeral=False)
 
@@ -302,7 +294,6 @@ class TradeValue(commands.Cog):
             await interaction.followup.send("Failed")
 
     @app_commands.command(name="clear_trade",description="Clear your current Trade Proposal")
-    @app_commands.guilds(discord.Object(id=guild_id))
     async def clear_trade(self,interaction:discord.Interaction):
         await interaction.response.defer()
         await self.clear_trades(str(interaction.user.id))
@@ -327,8 +318,6 @@ class TradeValue(commands.Cog):
             print('[TradeValue] - Trade Values .. Done')
 
 
-
-
     ###################################################
     # Setup          
     ###################################################
@@ -337,6 +326,16 @@ class TradeValue(commands.Cog):
     async def on_ready(self): 
         print('[TradeValue] - Initialized TradeValue')
 
+
+    ####################################################
+    # Handle Load
+    ####################################################
+
+    async def cog_load(self):
+        print('[TradeValue] - Cog Load .. ')
+        guild = discord.Object(id=self.bot.state.guild_id)
+        for command in self.get_app_commands():
+            self.bot.tree.add_command(command, guild=guild)
 
     ###################################################
     # Handle Exit           

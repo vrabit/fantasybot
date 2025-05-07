@@ -15,14 +15,11 @@ import utility
 current_dir = Path(__file__).parent
 
 
-# bot embed color
-emb_color = discord.Color.from_rgb(225, 198, 153)
-
-
 ###################################################
 # Setup discord bot          
 ###################################################
-
+# bot embed color
+#emb_color = discord.Color.from_rgb(225, 198, 153)
 data = utility.get_private_data()
 
 # Setup Bot
@@ -37,7 +34,7 @@ bot = commands.Bot(command_prefix= "$", intents = intents, application_id = app_
 
 
 class BotState:
-    def __init__(self,guild_id:int = None, guild:discord.Object = None):
+    def __init__(self,guild_id:int = None, guild:discord.Object = None, emb_color:discord.Color = discord.Color.from_rgb(225, 198, 153)):
         # Shared resources and locks
         self.fantasy_query = None
         self.fantasy_query_lock = asyncio.Lock()
@@ -45,10 +42,15 @@ class BotState:
         self.session_lock = asyncio.Lock()
         self.guild_id = guild_id
         self.guild = guild
+        self.emb_color = emb_color
 
 
 bot.state = BotState(guild_id=guild_id, guild=guild)
 
+
+###################################################
+# RSS Setup         
+###################################################
 
 async def setup_session():
     async with bot.state.session_lock:
@@ -63,16 +65,8 @@ async def close_session():
         bot.state.session = None
 
 
-async def reload_extensions():
-    # load all cogs
-    for filename in os.listdir('./cogs'):
-        if filename.endswith('py') and not filename.startswith('__'):
-            print(f'Loaded {filename}')
-            await bot.reload_extension(f'cogs.{filename[:-3]}')
-
-
 ######################################################
-# Reload
+# Manual Sync Commands
 ######################################################
 
 @bot.command()
@@ -109,6 +103,9 @@ async def sync(ctx:commands.Context)->None:
         print(f"[Main_Setup] - TranslationError: A translation issue occurred while syncing commands: {e}")
     
 
+###################################################
+# Startup         
+###################################################
 
 @bot.event
 async def on_ready():
@@ -140,6 +137,7 @@ async def shutdown():
     except Exception as e:
         print ('[Main_Setup] - Error during shutdown: {e}')
 
+
 def handle_exit(signal_received, frame):
     print(f'\n[Main_Setup] - Signal {signal_received}.')
     print(f'[Main_Setup] - Current Function: {frame.f_code.co_name}')
@@ -148,15 +146,22 @@ def handle_exit(signal_received, frame):
     bot.loop.create_task(close_session())
     bot.loop.create_task(shutdown())
 
+
 # Register exit definitions
 signal.signal(signal.SIGINT,handle_exit)
 signal.signal(signal.SIGTERM,handle_exit)
+
+
+###################################################
+# Load Cogs and Extensions       
+###################################################
 
 async def load_Test():
     for filename in os.listdir('./cogs'):
         if filename.startswith('MaintainFantasy') or filename.startswith('RSS'):
             print(f'[Main_Setup] - Loaded {filename}')
             await bot.load_extension(f'cogs.{filename[:-3]}')
+
 
 async def load_extensions():
     # load all cogs
@@ -167,9 +172,10 @@ async def load_extensions():
 
 
 async def setup_hook():
-    print(f'[Main_Setup] - {bot.tree.get_commands(guild=guild)}')
     await setup_session()
     await load_extensions()
+    #print(f'[Main_Setup] - {bot.tree.get_commands(guild=guild)}')
+
 
 bot.setup_hook = setup_hook
 bot.run(token)

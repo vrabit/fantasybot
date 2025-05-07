@@ -20,7 +20,7 @@ class RSSHandler(commands.Cog):
         self.parent_dir = self.current_dir.parent
 
         # bot embed color
-        self.emb_color = discord.Color.from_rgb(225, 198, 153)
+        self.emb_color = self.bot.state.emb_color
 
         self.rssURL = 'https://www.rotowire.com/rss/news.php?sport=NFL'
         self.update_interval = 600.0

@@ -11,11 +11,6 @@ from pathlib import Path
 import utility
 
 
-data = utility.get_private_data()
-
-# Decorator guild_id
-guild_id = int(data.get('guild_id'))
-
 class SlapChallenge(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
@@ -30,7 +25,7 @@ class SlapChallenge(commands.Cog):
         self.active_views_lock = asyncio.Lock()
 
         # bot embed color
-        self.emb_color = discord.Color.from_rgb(225, 198, 153)
+        self.emb_color = self.bot.state.emb_color
 
         # Slap 
         self.loser_role_name = 'King Chump'
@@ -43,6 +38,7 @@ class SlapChallenge(commands.Cog):
 
         self.setup_discord()
 
+
     ###################################################
     # Assign roles         
     ###################################################
@@ -54,6 +50,7 @@ class SlapChallenge(commands.Cog):
             member = await guild.fetch_member(user_id)
 
         return member
+
 
     async def assign_role(self,member: discord.Member, role_name:str, channel: discord.TextChannel):
         guild = channel.guild
@@ -71,6 +68,7 @@ class SlapChallenge(commands.Cog):
             print(f'[SlapChallenge] - Do not have the necessary permissions to assign {role_name} role')
         except discord.HTTPException as e:
             print(f'[SlapChallenge] - Failed to assign {role_name} role')
+
 
     async def remove_role_members(self,role_name:str):
         async with self.channel_id_lock:
@@ -171,6 +169,7 @@ class SlapChallenge(commands.Cog):
         for key in challenges_deque:
             await self.display_results(current_week, key, challenges_deque[key], member_storage)
 
+
     @tasks.loop(minutes=1440)
     async def remove_slap_roles(self):
         # load dates list
@@ -190,6 +189,7 @@ class SlapChallenge(commands.Cog):
         if end_obj == today_obj:
             await self.remove_role_members(self.loser_role_name)
             await self.remove_role_members(self.denier_role_name)
+
 
     @tasks.loop(minutes=1440)
     async def poll_slap(self):
@@ -230,6 +230,7 @@ class SlapChallenge(commands.Cog):
             current_challenges = utility.load_challenges()
             await self.iterate_deque(current_week, current_challenges,members_storage)
             utility.clear_challenges()
+
 
     class AcceptDenyChallenge(discord.ui.View):
         def __init__(self, challenger,challengee,challengee_teamid, challenger_teamid):
@@ -328,9 +329,9 @@ class SlapChallenge(commands.Cog):
             await self.assign_role(member,self.denier_role_name,channel)
             await interaction.response.edit_message(embed = embed, view=self)
 
+
     @app_commands.command(name="slap",description="Slap Somebody. Loser=Chump. Denier=Pan")
     @app_commands.describe(discord_user="Target's Discord Tag")
-    @app_commands.guilds(discord.Object(id=guild_id))
     async def slap(self,interaction:discord.Interaction,discord_user:discord.User):
         await interaction.response.defer()
         # add challenges if not on the start date
@@ -374,6 +375,7 @@ class SlapChallenge(commands.Cog):
         message = await interaction.followup.send(embed = embed, view = view)
         view.message = message
 
+
     ###################################################
     # Error Handling         
     ###################################################
@@ -388,9 +390,6 @@ class SlapChallenge(commands.Cog):
             # Log the error or print details for debugging
             print(f"[SlapChallenge] - Error: {error}")
 
-    ###################################################
-    # Handle Exit           
-    ###################################################
 
     def setup_discord(self):
         with open(self.parent_dir / 'discordauth'/ 'private.json', 'r') as file:
@@ -399,9 +398,25 @@ class SlapChallenge(commands.Cog):
         self.channel_id = int(data.get('channel_id'))
         self.news_channel_id = int(data.get('news_channel_id'))
 
+
+    ###################################################
+    # Handle Load           
+    ###################################################
+
+    async def cog_load(self):
+        print('[SlapChallenge] - Cog Load .. ')
+        guild = discord.Object(id=self.bot.state.guild_id)
+        for command in self.get_app_commands():
+            self.bot.tree.add_command(command, guild=guild)
+
     @commands.Cog.listener()
     async def on_ready(self):
         print('[SlapChallenge] - Setup SlapChallenge')
+
+
+    ###################################################
+    # Handle Exit          
+    ###################################################    
 
     def cog_unload(self):
         print('[SlapChallenge] - Cog Unload')
