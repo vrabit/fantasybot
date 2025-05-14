@@ -4,7 +4,6 @@ from discord.ext import  commands
 from pathlib import Path
 
 import os
-import json
 from dotenv import load_dotenv
 import os
 
@@ -86,12 +85,14 @@ async def clear_global_commands(ctx:commands.Context)->None:
     ctx.bot.tree.clear_commands(guild=guild)
     print('[Main_Setup] - Cleared global commands.')
 
+
 @bot.command()
 @commands.guild_only()
 @commands.is_owner()
 async def clear_guild_commands(ctx:commands.Context)->None:
     ctx.bot.tree.clear_commands(guild=ctx.guild)
     print('[Main_Setup] - Cleared guild commands.')
+
 
 @bot.command()
 @commands.guild_only()
@@ -134,7 +135,6 @@ async def on_ready():
         print(f"[Main_Setup] - TranslationError: A translation issue occurred while syncing commands: {e}")
 
     print('[Main_Setup] - Bot is ready.')
-    pass
 
 
 ###################################################
@@ -181,10 +181,13 @@ async def load_extensions():
             print(f'[Main_Setup] - Loaded {filename}')
 
 
+#######################################################
+# Setup Hook and Run Bot
+#######################################################
+
 async def setup_hook():
     await setup_session()
     await load_extensions()
-    #print(f'[Main_Setup] - {bot.tree.get_commands(guild=guild)}')
 
 
 bot.setup_hook = setup_hook
