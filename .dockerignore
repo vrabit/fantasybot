@@ -1,5 +1,13 @@
-**/.env*
-!**/.env*.example
+# Ignore all User specific private files
+.env
+.env.config
+.env.private
+.env.discord
 
-**/.json
-!**/.json.example
+# Ignore all non-example json files at any depth
+**/*.json
+!**/*.json.example
+
+fantasyenv/*
+__pycache__/
+.git/
