@@ -6,10 +6,10 @@ __pycache__/
 *.py[cod]
 
 # Private files
-/discordauth/
-/yfpyauth/
+.env*
+!.env*.example
+*.json
+!*.json.example
 
-# Ignore backups
-/persistent_data/backup.json
-/persistent_data/rss_queue.json
+# Ignore server specific files
 /recap/
