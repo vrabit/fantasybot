@@ -13,36 +13,74 @@ current_dir = Path(__file__).parent
 
 EMPTY = '\u001b'
 private_lock = asyncio.Lock()
-
+member_lock = asyncio.Lock()
 
 ###################################################
 # load and store private.json file
 ###################################################
+async def private_json_creator(file_path):
+    """Create private.json file if it does not exist.
+    Args:
+        file_path (str): Path to the private.json file
+    """
+    async with private_lock:
+    # create private.json file
+        with open(file_path, 'w') as file:
+            data = {
+                'news_channel_id': None,
+                'channel_id': None
+            }
+            json.dump(data, file, indent=4)
+        
+    return data
 
-# only used for initialization of bot and cogs
-def get_private_data():
+
+def get_private_data() -> dict:
+    """Load discord private.json file.
+    Returns:
+        dict: Data from private.json
+    """
     # load private.json file
     with open(current_dir / 'discordauth'/ 'private.json','r') as file:
         data = json.load(file)
     return data
 
-def store_private_data(data):
+
+def store_private_data(data) -> None:
+    """Store discord private.json file.
+    Args:
+        data (dict): Data to be stored in private.json
+    """
     # store private.json file
     with open(current_dir / 'discordauth'/ 'private.json','w') as file:
         json.dump(data, file, indent = 4)
 
-# used for async access to private.json file
-async def get_private_data_async():
-    async with private_lock:
-        # load private.json file
-        with open(current_dir / 'discordauth'/ 'private.json','r') as file:
-            data = json.load(file)
-    return data
 
-async def store_private_data_async(data):
+async def get_private_discord_data_async() -> dict:
+    """Load discord private.json file asynchronously.
+    Returns:
+        dict: Data from private.json
+    """
+    file_path = current_dir / 'discordauth' / 'private.json'
+    if file_path.exists():
+        async with private_lock:
+            # load private.json file
+            with open(file_path,'r') as file:
+                data = json.load(file)
+        return data
+    else:
+        return await private_json_creator(file_path)
+
+
+async def set_private_discord_data_async(data) -> None:
+    """Store discord private.json file asynchronously.
+    Args:
+        data (dict): Data to be stored in private.json
+    """
+    file_path = current_dir / 'discordauth' / 'private.json'
     async with private_lock:
         # store private.json file
-        with open(current_dir / 'discordauth'/ 'private.json','w') as file:
+        with open(file_path,'w') as file:
             json.dump(data, file, indent = 4)
 
 
@@ -51,6 +89,12 @@ async def store_private_data_async(data):
 ###################################################
 
 def serialize_matchups(scoreboard):
+    """Serialize matchups data to a dictionary.
+    Args:
+        scoreboard (object): YFPY Scoreboard object
+    Returns:    
+        dict: Serialized matchups data
+    """
     def to_serializable(value):
         if isinstance(value, bytes):
             return value.decode('utf-8')
@@ -275,10 +319,13 @@ def add_challenges(challenger_team_id, challengee_team_id):
     save_challenges(challenges)
 
 
-#############################################
-
-def bind_discord( draft_id, discord_id):
+def bind_discord(draft_id, discord_id) -> None:
+    """    Bind Yahoo draft id to Discord id
     
+    Args:
+        draft_id (str): Yahoo draft id 
+        discord_id (str): Discord id
+    """
     with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
         members = json.load(file)
     
@@ -289,6 +336,26 @@ def bind_discord( draft_id, discord_id):
 
     with open(current_dir / 'persistent_data'/ 'members.json', 'w') as file:
         json.dump(members, file, indent = 4)
+
+
+async def bind_discord_async(draft_id, discord_id) -> None:
+    """Bind Yahoo draft id to Discord id
+    
+    Args:
+        draft_id (str): Yahoo draft id 
+        discord_id (str): Discord id
+    """
+    async with member_lock:
+        with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
+            members = json.load(file)
+        
+        for i in range(len(members)):
+            if members[i].get('id') == str(draft_id):
+                members[i]['discord_id'] = str(discord_id)
+                break
+
+        with open(current_dir / 'persistent_data'/ 'members.json', 'w') as file:
+            json.dump(members, file, indent = 4)
 
 
 def compose_player_key(game_key, player_id):

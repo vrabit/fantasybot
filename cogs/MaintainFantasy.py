@@ -3,49 +3,50 @@ from discord.ext import tasks, commands
 
 from pathlib import Path
 
-import json
-
 from yfpy.query import YahooFantasySportsQuery
 from fantasy import fantasyQuery
+
+import os
+
 
 class MaintainFantasy(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
-        self.refresh_fantasy.start()
+        #self.refresh_fantasy.start()
 
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
 
     ###################################################
-    # Refresh fantasy every 4 hours         
+    # Setup fantasy object       
     ###################################################
 
-    @tasks.loop(minutes=60)
+    #@tasks.loop(minutes=60)
     async def refresh_fantasy(self):
-        print('[MaintainFantasy] - Refreshing Fantasy Object')
+        print('[MaintainFantasy] - Initializing Fantasy Object')
         async with self.bot.state.fantasy_query_lock:
             # set directory location of private.json for authentication
             auth_dir = self.parent_dir / 'yfpyauth' 
 
-            with open(auth_dir / 'config.json', 'r') as file:
-                config_data = json.load(file)
-
-            with open(auth_dir / 'private.json') as file:
-                private_data = json.load(file)
-
-            # game_id = None, defaults to the game ID for the current year.
-            yahoo_query = YahooFantasySportsQuery(
-                auth_dir,
-                config_data.get('league_id'),
-                config_data.get('game_code'),
-                game_id = config_data.get('game_id'),
-                offline=False,
-                all_output_as_json_str=False,
-                consumer_key=private_data.get('consumer_key'),
-                consumer_secret=private_data.get('consumer_secret')
-            )
-
-            self.bot.fantasy_query = fantasyQuery(yahoo_query)
+            try:
+                # game_id = None, defaults to the game ID for the current year.
+                yahoo_query = YahooFantasySportsQuery(
+                    league_id = os.getenv('LEAGUE_ID'),
+                    game_code = os.getenv('GAME_CODE').lower(),
+                    game_id = os.getenv('GAME_ID'),
+                    yahoo_consumer_key=os.getenv('CONSUMER_KEY'),
+                    yahoo_consumer_secret=os.getenv('CONSUMER_SECRET'),
+                    save_token_data_to_env_file=True,
+                    env_file_location=auth_dir,
+                )
+            except Exception as e:
+                print(f'[MaintainFantasy] - Error initializing Yahoo Fantasy Sports Query: {e}')
+                print(f'[MaintainFantasy] - Verify elements within yfpyauth/config.json and yfpyauth/private.json')
+                self.bot.close()
+                return
+            
+            # Set bot state to the new fantasy query object
+            self.bot.state.fantasy_query = fantasyQuery(yahoo_query)
         print('[MaintainFantasy] - .. Done')
 
 
@@ -55,6 +56,7 @@ class MaintainFantasy(commands.Cog):
     
     @commands.Cog.listener()
     async def on_ready(self):
+        await self.refresh_fantasy()
         print('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
 
 
@@ -63,7 +65,7 @@ class MaintainFantasy(commands.Cog):
     ###################################################
 
     def cog_unload(self):
-        self.refresh_fantasy.cancel()
+        #self.refresh_fantasy.cancel()
         print('[MaintainFantasy] - Cog Unload')
 
 

@@ -18,11 +18,6 @@ class FantasyQuery(commands.Cog):
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
 
-        self.channel_id = None
-        self.channel_id_lock = asyncio.Lock()
-        self.news_channel_id = None
-        self.news_id_lock = asyncio.Lock()
-
         self.store_data.start()
 
         # bot embed color
@@ -104,14 +99,14 @@ class FantasyQuery(commands.Cog):
     async def fantasy_info(self,interaction: discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            fan_league = self.bot.fantasy_query.get_league()
+            fan_league = self.bot.state.fantasy_query.get_league()
 
 
         embed = discord.Embed(title = fan_league['league'].name.decode('utf-8'), url=fan_league['league'].url,description = 'Fantasy participants and IDs', color = self.emb_color ) 
         embed.set_thumbnail(url = fan_league['league'].logo_url)
         
         async with self.bot.state.fantasy_query_lock:
-            teams = self.bot.fantasy_query.get_teams()
+            teams = self.bot.state.fantasy_query.get_teams()
 
         for team in teams:
             embed.add_field(name = team.name.decode("utf-8"), value = "Team ID: " + str(team.team_id))
@@ -125,7 +120,7 @@ class FantasyQuery(commands.Cog):
             members = json.load(file)
 
         async with self.bot.state.fantasy_query_lock:
-            fan_league = self.bot.fantasy_query.get_league()
+            fan_league = self.bot.state.fantasy_query.get_league()
 
         embed = discord.Embed(title = fan_league['league'].name.decode('utf-8'), url=fan_league['league'].url,description = 'Current Yahoo and Discord Connections', color = self.emb_color ) 
         embed.set_thumbnail(url = fan_league['league'].logo_url)
@@ -149,7 +144,7 @@ class FantasyQuery(commands.Cog):
         value = utility.arg_to_int(id)
 
         if value != None and (value >= 1 or value <= 10):
-            utility.bind_discord(value,discord_id)
+            await utility.bind_discord_async(value,discord_id)
             await interaction.response.send_message(f'Team ID: {value} bound to Discord ID: {utility.id_to_mention(discord_id)}',ephemeral=True)
         else:
             await interaction.response.send_message('Integer between 1 - 10',ephemeral=True)
@@ -160,7 +155,7 @@ class FantasyQuery(commands.Cog):
     async def bind_other(self, interaction:discord.Interaction, discord_user:discord.User, id:int):
 
         if id != None and (id >= 1 or id <= 10):
-            utility.bind_discord(id,discord_user.id)
+            await utility.bind_discord_async(id,discord_user.id)
             await interaction.response.send_message(f'Team ID: {id} bound to Discord ID: {utility.id_to_mention(discord_user.id)}',ephemeral=True)
         else:
             await interaction.response.send_message('Integer between 1 - 10',ephemeral=True)
@@ -168,8 +163,27 @@ class FantasyQuery(commands.Cog):
 
     @app_commands.command(name="set_news",description="Set current channel to news channel")
     async def set_channel(self,interaction:discord.Interaction):
-        async with self.news_id_lock:
-            self.news_channel_id = interaction.channel_id
+        async with self.bot.state.news_channel_id_lock:
+            self.bot.state.news_channel_id = interaction.channel_id
+
+        # save channel id to persistent data
+        data = await utility.get_private_discord_data_async()
+        data.update({'news_channel_id': interaction.channel_id})
+        await utility.set_private_discord_data_async(data)
+
+        await interaction.response.send_message('News Channel Set.')
+
+
+    @app_commands.command(name="set_slap_channel",description="Set current channel to slap channel")
+    async def set_slap_channel(self,interaction:discord.Interaction):
+        async with self.bot.state.slaps_channel_id_lock:
+            self.bot.state.slap_channel_id = interaction.channel_id
+
+        # save channel id to persistent data
+        data = await utility.get_private_discord_data_async()
+        data.update({'channel_id': interaction.channel_id})
+        await utility.set_private_discord_data_async(data)
+
         await interaction.response.send_message('News Channel Set.')
 
 
@@ -178,13 +192,13 @@ class FantasyQuery(commands.Cog):
     async def week_chump(self,interaction:discord.Interaction,week:int):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league = self.bot.fantasy_query.get_league()['league']
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
         # search for lowerst points
         current_lowest = -1
 
         async with self.bot.state.fantasy_query_lock:
-            matchups_list = self.bot.fantasy_query.get_scoreboard(week).matchups
+            matchups_list = self.bot.state.fantasy_query.get_scoreboard(week).matchups
         for i in range(len(matchups_list)):
             team_list = matchups_list[i].teams
             
@@ -219,7 +233,7 @@ class FantasyQuery(commands.Cog):
 
             async with self.bot.state.fantasy_query_lock:
                 # get and display loser's roster
-                player_list = self.bot.fantasy_query.get_team_roster(lowest_id,week).players
+                player_list = self.bot.state.fantasy_query.get_team_roster(lowest_id,week).players
 
             # create lists for formatting
             starting_list = []
@@ -236,16 +250,16 @@ class FantasyQuery(commands.Cog):
             async with self.bot.state.fantasy_query_lock:
             # populate the fields
                 for player in starting_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 for player in defense_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'{team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 embed.add_field(name = '\u200b', value = '\u200b')  
                 for player in bench_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)   
             
             embed.set_footer(text = lowest_name.decode('utf-8'))
@@ -256,7 +270,7 @@ class FantasyQuery(commands.Cog):
     async def chump(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league = self.bot.fantasy_query.get_league()['league']
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
         week = fantasy_league.current_week
 
@@ -264,7 +278,7 @@ class FantasyQuery(commands.Cog):
         current_lowest = -1
 
         async with self.bot.state.fantasy_query_lock:
-            matchups_list = self.bot.fantasy_query.get_scoreboard(week).matchups
+            matchups_list = self.bot.state.fantasy_query.get_scoreboard(week).matchups
         for i in range(len(matchups_list)):
             team_list = matchups_list[i].teams
             
@@ -299,7 +313,7 @@ class FantasyQuery(commands.Cog):
 
             async with self.bot.state.fantasy_query_lock:
                 # get and display loser's roster
-                player_list = self.bot.fantasy_query.get_team_roster(lowest_id,week).players
+                player_list = self.bot.state.fantasy_query.get_team_roster(lowest_id,week).players
 
             # create lists for formatting
             starting_list = []
@@ -316,16 +330,16 @@ class FantasyQuery(commands.Cog):
             async with self.bot.state.fantasy_query_lock:
             # populate the fields
                 for player in starting_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 for player in defense_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'{team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 embed.add_field(name = '\u200b', value = '\u200b')  
                 for player in bench_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)   
             
             embed.set_footer(text = lowest_name.decode('utf-8'))
@@ -337,13 +351,13 @@ class FantasyQuery(commands.Cog):
     async def week_mvp(self,interaction:discord.Interaction,week:int):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league = self.bot.fantasy_query.get_league()['league']
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
         # search for lowerst points
         current_highest = -1
             
         async with self.bot.state.fantasy_query_lock:
-            matchups_list = self.bot.fantasy_query.get_scoreboard(week).matchups
+            matchups_list = self.bot.state.fantasy_query.get_scoreboard(week).matchups
         for i in range(len(matchups_list)):
             team_list = matchups_list[i].teams
             
@@ -381,7 +395,7 @@ class FantasyQuery(commands.Cog):
 
             async with self.bot.state.fantasy_query_lock:
                 # get and display loser's roster
-                player_list = self.bot.fantasy_query.get_team_roster(highest_id,week).players
+                player_list = self.bot.state.fantasy_query.get_team_roster(highest_id,week).players
 
             # create lists for formatting
             starting_list = []
@@ -398,16 +412,16 @@ class FantasyQuery(commands.Cog):
             async with self.bot.state.fantasy_query_lock:
             # populate the fields
                 for player in starting_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 for player in defense_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'{team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 embed.add_field(name = '\u200b', value = '\u200b')  
                 for player in bench_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)   
             
             embed.set_footer(text = highest_name.decode('utf-8'))
@@ -417,7 +431,7 @@ class FantasyQuery(commands.Cog):
     async def mvp(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league = self.bot.fantasy_query.get_league()['league']
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
         week = fantasy_league.current_week
 
@@ -425,7 +439,7 @@ class FantasyQuery(commands.Cog):
         current_highest = -1
             
         async with self.bot.state.fantasy_query_lock:
-            matchups_list = self.bot.fantasy_query.get_scoreboard(week).matchups
+            matchups_list = self.bot.state.fantasy_query.get_scoreboard(week).matchups
         for i in range(len(matchups_list)):
             team_list = matchups_list[i].teams
             
@@ -463,7 +477,7 @@ class FantasyQuery(commands.Cog):
 
             async with self.bot.state.fantasy_query_lock:
                 # get and display loser's roster
-                player_list = self.bot.fantasy_query.get_team_roster(highest_id,week).players
+                player_list = self.bot.state.fantasy_query.get_team_roster(highest_id,week).players
 
             # create lists for formatting
             starting_list = []
@@ -480,16 +494,16 @@ class FantasyQuery(commands.Cog):
             async with self.bot.state.fantasy_query_lock:
             # populate the fields
                 for player in starting_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 for player in defense_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'{team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)        
                 
                 embed.add_field(name = '\u200b', value = '\u200b')  
                 for player in bench_list:
-                    team_stats = self.bot.fantasy_query.team_stats(player,week)
+                    team_stats = self.bot.state.fantasy_query.team_stats(player,week)
                     embed.add_field(name = f'{team_stats.name.full}', value = f'#{team_stats.uniform_number}, {team_stats.primary_position}, {team_stats.editorial_team_full_name} \nTotal Pts: [{team_stats.player_points.total:4.2f}]({team_stats.url})', inline = False)   
             
             embed.set_footer(text = highest_name.decode('utf-8'))
@@ -501,13 +515,13 @@ class FantasyQuery(commands.Cog):
     async def week_matchups(self,interaction:discord.Interaction,week:int):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            fan_league = self.bot.fantasy_query.get_league()
+            fan_league = self.bot.state.fantasy_query.get_league()
 
         embed = discord.Embed(title = f'Week {week} Matchups', url=fan_league['league'].url, description = '', color = self.emb_color)
 
         if week is not None:
             async with self.bot.state.fantasy_query_lock:
-                matchups_list = self.bot.fantasy_query.get_scoreboard(week).matchups
+                matchups_list = self.bot.state.fantasy_query.get_scoreboard(week).matchups
             for i in range(len(matchups_list)):
                 team_list = matchups_list[i].teams
                 
@@ -526,15 +540,15 @@ class FantasyQuery(commands.Cog):
     async def matchups(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            week = self.bot.fantasy_query.get_league()['league'].current_week
-            fan_league = self.bot.fantasy_query.get_league()
+            week = self.bot.state.fantasy_query.get_league()['league'].current_week
+            fan_league = self.bot.state.fantasy_query.get_league()
 
         embed = discord.Embed(title = f'Week {week} Matchups', url=fan_league['league'].url, description = '', color = self.emb_color)
 
         if week is not None:
 
             async with self.bot.state.fantasy_query_lock:
-                matchups_list = self.bot.fantasy_query.get_scoreboard(week).matchups
+                matchups_list = self.bot.state.fantasy_query.get_scoreboard(week).matchups
             for i in range(len(matchups_list)):
                 team_list = matchups_list[i].teams
                 
@@ -566,12 +580,12 @@ class FantasyQuery(commands.Cog):
             name = closest_keys[0]
 
         async with self.bot.state.fantasy_query_lock:
-            player_id = self.bot.fantasy_query.get_player_id(name)
+            player_id = self.bot.state.fantasy_query.get_player_id(name)
 
             # weekly stats
-            player = self.bot.fantasy_query.get_player_stats(player_id)
-            week = self.bot.fantasy_query.get_league()['league'].current_week
-            team_stats = self.bot.fantasy_query.team_stats(player_id,week)
+            player = self.bot.state.fantasy_query.get_player_stats(player_id)
+            week = self.bot.state.fantasy_query.get_league()['league'].current_week
+            team_stats = self.bot.state.fantasy_query.team_stats(player_id,week)
 
         embed = discord.Embed(title = f'{name}', url=player.url, description = f'#{player.uniform_number}, {player.display_position}, {player.editorial_team_full_name}', color = self.emb_color)
         embed.set_thumbnail(url = player.image_url)
@@ -583,7 +597,7 @@ class FantasyQuery(commands.Cog):
 
         # season points
         async with self.bot.state.fantasy_query_lock:
-            season_league = self.bot.fantasy_query.get_league_stats(player_id)['league']
+            season_league = self.bot.state.fantasy_query.get_league_stats(player_id)['league']
 
         season_stats = season_league.players[0]
         embed.add_field(name = 'Season Pts', value = utility.to_block(season_stats.player_points.total))
@@ -591,7 +605,7 @@ class FantasyQuery(commands.Cog):
 
         # footer
         async with self.bot.state.fantasy_query_lock:
-            ownership_result = self.bot.fantasy_query.get_ownership(player_id)['league']  
+            ownership_result = self.bot.state.fantasy_query.get_ownership(player_id)['league']  
         if len(ownership_result.players[0].ownership.teams) != 0:
             embed.set_footer(text = 'Manager: ' + ownership_result.players[0].ownership.teams[0].name.decode('utf-8'))
         
@@ -599,7 +613,7 @@ class FantasyQuery(commands.Cog):
         stats_list = team_stats.player_stats.stats
         for i in range(len(stats_list)):
             async with self.bot.state.fantasy_query_lock:
-                embed.add_field(name = self.bot.fantasy_query.stat_dict.get(str(stats_list[i].stat_id)), value = utility.to_block(f'{stats_list[i].value:3.1f}'), inline = True)
+                embed.add_field(name = self.bot.state.fantasy_query.stat_dict.get(str(stats_list[i].stat_id)), value = utility.to_block(f'{stats_list[i].value:3.1f}'), inline = True)
 
         await interaction.followup.send(embed=embed,ephemeral=False)
 
@@ -608,7 +622,7 @@ class FantasyQuery(commands.Cog):
     async def leaderboard(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            standings = self.bot.fantasy_query.get_all_standings(10)
+            standings = self.bot.state.fantasy_query.get_all_standings(10)
 
         sorted_standings = sorted(standings, key = lambda tup: int(tup[1].rank))
 
@@ -634,7 +648,7 @@ class FantasyQuery(commands.Cog):
     async def most_points(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            standings = self.bot.fantasy_query.get_all_standings(10)
+            standings = self.bot.state.fantasy_query.get_all_standings(10)
 
         sorted_standings = sorted(standings, key = lambda tup: int(tup[1].points_for), reverse = True)
 
@@ -660,7 +674,7 @@ class FantasyQuery(commands.Cog):
     async def points_against(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            standings = self.bot.fantasy_query.get_all_standings(10)
+            standings = self.bot.state.fantasy_query.get_all_standings(10)
 
         sorted_standings = sorted(standings, key = lambda tup: int(tup[1].points_against), reverse = True)
 
@@ -790,7 +804,7 @@ class FantasyQuery(commands.Cog):
         newln = '\n'
 
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league = self.bot.fantasy_query.get_league()['league']
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
         week = fantasy_league.current_week
         last_week = week - 1
@@ -799,7 +813,7 @@ class FantasyQuery(commands.Cog):
             await interaction.followup.send("Error: Week 1 hasn't ended.",ephemeral=False)
 
         async with self.bot.state.fantasy_query_lock:
-            matchups_list = self.bot.fantasy_query.get_scoreboard(last_week).matchups
+            matchups_list = self.bot.state.fantasy_query.get_scoreboard(last_week).matchups
 
         # search for lowest points and highest
         highest_scoring_team_pts, highest_scoring_team, highest_scoring_url = await self.highest_scoring(matchups_list)
@@ -856,7 +870,7 @@ class FantasyQuery(commands.Cog):
         for i in range(fantasy_league_info.start_week, fantasy_league_info.end_week + 1):
 
             async with self.bot.state.fantasy_query_lock:  
-                current_week_obj = self.bot.fantasy_query.get_scoreboard(i)
+                current_week_obj = self.bot.state.fantasy_query.get_scoreboard(i)
 
             filename = f"week_{i}_matchup.json"
             utility.store_matchups(current_week_obj,filename)
@@ -866,7 +880,7 @@ class FantasyQuery(commands.Cog):
     async def store_data(self):
         await asyncio.sleep(15)
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league_info = self.bot.fantasy_query.get_league()['league']
+            fantasy_league_info = self.bot.state.fantasy_query.get_league()['league']
 
         end_date = fantasy_league_info.end_date
         end_obj = datetime.datetime.strptime(end_date, '%Y-%m-%d').date() 
@@ -916,29 +930,8 @@ class FantasyQuery(commands.Cog):
     # Handle Startup          
     ###################################################
 
-    async def setup_discord(self):
-        with open(self.parent_dir / 'discordauth'/ 'private.json', 'r') as file:
-            data = json.load(file)
-
-        # load default channel IDs from private.json
-        raw_channel_id = data.get('channel_id')
-        if raw_channel_id is None:
-            print('[FantasyQuery] - No channel ID found in private.json')
-        else:
-            async with self.channel_id_lock:
-                self.channel_id = int(raw_channel_id)
-
-        # load news channel ID from private.json
-        raw_news_channel_id = data.get('news_channel_id')
-        if raw_news_channel_id is None:
-            print('[FantasyQuery] - No news channel ID found in private.json')
-        else:
-            async with self.news_id_lock:
-                self.news_channel_id = int(raw_news_channel_id)
-
     @commands.Cog.listener()
     async def on_ready(self):
-        await self.setup_discord()
         print('[FantasyQuery] - Channels Set Up!')
 
 

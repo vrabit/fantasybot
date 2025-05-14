@@ -5,6 +5,8 @@ from pathlib import Path
 
 import os
 import json
+from dotenv import load_dotenv
+import os
 
 import signal
 import asyncio
@@ -15,19 +17,23 @@ import utility
 current_dir = Path(__file__).parent
 
 
+# Load environment variables from .env files
+load_dotenv(current_dir / 'yfpyauth' / ".env.config")
+load_dotenv(current_dir / 'yfpyauth' / '.env.private')
+load_dotenv(current_dir / 'discordauth' / '.env.discord')
+
+
 ###################################################
 # Setup discord bot          
 ###################################################
-# bot embed color
-#emb_color = discord.Color.from_rgb(225, 198, 153)
-data = utility.get_private_data()
 
 # Setup Bot
-token = data.get('discord_token')
-guild_id = int(data.get('guild_id'))
+token = os.getenv('DISCORD_TOKEN')
+guild_id = int(os.getenv('GUILD_ID'))
 guild = discord.Object(id=guild_id)
-app_id = int(data.get('app_id'))
+app_id = int(os.getenv('APP_ID'))
 
+# Set up the bot with all intents
 intents = discord.Intents.all()
 intents.message_content = True
 bot = commands.Bot(command_prefix= "$", intents = intents, application_id = app_id)
@@ -43,6 +49,10 @@ class BotState:
         self.guild_id = guild_id
         self.guild = guild
         self.emb_color = emb_color
+        self.news_channel_id = None
+        self.news_channel_id_lock = asyncio.Lock()
+        self.slaps_channel_id = None
+        self.slaps_channel_id_lock = asyncio.Lock()
 
 
 bot.state = BotState(guild_id=guild_id, guild=guild)

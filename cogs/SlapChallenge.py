@@ -17,9 +17,10 @@ class SlapChallenge(commands.Cog):
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
 
+        """
         self.channel_id = None
         self.channel_id_lock = asyncio.Lock()
-
+        """
         # keep track of active view instances
         self.active_views = []
         self.active_views_lock = asyncio.Lock()
@@ -71,9 +72,10 @@ class SlapChallenge(commands.Cog):
 
 
     async def remove_role_members(self,role_name:str):
-        async with self.channel_id_lock:
-            local_id = self.channel_id
 
+        async with self.channel_id_lock:
+            local_id = self.bot.state.slaps_channel_id
+        
         channel = self.bot.get_channel(local_id)
         guild = channel.guild
 
@@ -91,8 +93,8 @@ class SlapChallenge(commands.Cog):
     async def display_results(self,current_week, challenger_key, challengee_deque, member_storage):
         chump_role = self.loser_role_name
 
-        async with self.channel_id_lock:
-            local_id = self.channel_id
+        async with self.bot.state.slaps_channel_id_lock:
+            local_id = self.bot.state.slap_channel_id
 
       
         # gather challenger info
@@ -103,14 +105,18 @@ class SlapChallenge(commands.Cog):
         # add to array for the future
         if member_storage[int(challenger_key) - 1] is None:
             async with self.bot.state.fantasy_query_lock:
-                challenger_stats = self.bot.fantasy_query.get_team_stats(current_week,int(challenger_key))
+                challenger_stats = self.bot.state.fantasy_query.get_team_stats(current_week,int(challenger_key))
             member_storage[int(challenger_key) - 1] = challenger_stats
         else:
             challenger_stats = member_storage[int(challenger_key) - 1]
 
         # get channel for message and guild.roles
+        """
         channel = self.bot.get_channel(local_id)
         guild = channel.guild
+        """
+        channel = self.bot.get_channel(local_id)
+        guild = self.bot.state.guild
         while challengee_deque:
             # gather current challenger info
             challengee_team_id = challengee_deque.pop()
@@ -121,7 +127,7 @@ class SlapChallenge(commands.Cog):
             # add to array for the future
             if member_storage[int(challengee_team_id) - 1] is None:
                 async with self.bot.state.fantasy_query_lock:
-                    challengee_stats = self.bot.fantasy_query.get_team_stats(current_week, int(challengee_team_id))
+                    challengee_stats = self.bot.state.fantasy_query.get_team_stats(current_week, int(challengee_team_id))
                 member_storage[int(challengee_team_id) - 1] = challengee_stats
             else:
                 member_storage[int(challengee_team_id) - 1]
@@ -177,7 +183,7 @@ class SlapChallenge(commands.Cog):
 
         # current week
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league = self.bot.fantasy_query.get_league()['league']   
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']   
             
         current_week = fantasy_league.current_week
 
@@ -202,7 +208,7 @@ class SlapChallenge(commands.Cog):
         exists = os.path.exists(date_file)
         if not exists:
             async with self.bot.state.fantasy_query_lock:
-                dates_list = utility.construct_date_list(self.fantasy_query.get_game_weeks()['game_weeks'])
+                dates_list = utility.construct_date_list(self.bot.state.fantasy_query.get_game_weeks()['game_weeks'])
             utility.store_dates(dates_list)
 
         # load dates list
@@ -210,7 +216,7 @@ class SlapChallenge(commands.Cog):
 
         async with self.bot.state.fantasy_query_lock:
             # current week
-            fantasy_league = self.bot.fantasy_query.get_league()['league']   
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']   
         current_week = fantasy_league.current_week
         last_week = current_week - 1
 
@@ -330,15 +336,32 @@ class SlapChallenge(commands.Cog):
             await interaction.response.edit_message(embed = embed, view=self)
 
 
+    async def setup_slap_channel(self,channel_id:int) -> None:
+        async with self.bot.state.slaps_channel_id_lock:
+            if self.bot.state.slaps_channel_id is not None:
+                return
+            else:
+                self.bot.state.slap_channel_id = channel_id
+
+        # save channel id to persistent data
+        data = await utility.get_private_discord_data_async()
+        data.update({'channel_id': channel_id})
+        await utility.set_private_discord_data_async(data)
+
+
     @app_commands.command(name="slap",description="Slap Somebody. Loser=Chump. Denier=Pan")
     @app_commands.describe(discord_user="Target's Discord Tag")
     async def slap(self,interaction:discord.Interaction,discord_user:discord.User):
         await interaction.response.defer()
+
+        # make sure channel is set
+        await self.setup_slap_channel(interaction.channel.id)
+            
         # add challenges if not on the start date
         loaded_dates = utility.load_dates()
 
         async with self.bot.state.fantasy_query_lock:
-            fantasy_league = self.bot.fantasy_query.get_league()['league']
+            fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
         current_week = fantasy_league.current_week
 
@@ -396,7 +419,7 @@ class SlapChallenge(commands.Cog):
             data = json.load(file)
 
         self.channel_id = int(data.get('channel_id'))
-        self.news_channel_id = int(data.get('news_channel_id'))
+
 
 
     ###################################################
