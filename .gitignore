@@ -8,8 +8,13 @@ __pycache__/
 # Private files
 .env*
 !.env*.example
+
+# User specific files
 *.json
 !*.json.example
 
 # Ignore server specific files
 /recap/
+
+# Ignore temporary file
+build-context.tar
