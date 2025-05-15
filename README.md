@@ -31,3 +31,90 @@
 | `/trade_receive`  | Add player to receiver side for trade       | `player: str`                |
 | `/compare_value`  | Evaluate trade value                        | –                            |
 | `/clear_trade`    | Clear your current trade proposals          | –                            |
+
+
+## 🚀 Quick Start
+
+<details>
+<summary>Setup Instructions</summary>
+
+1. Clone the repo:
+   ```bash
+   git clone https://github.com/vrabit/fantasybot.git
+   ```
+2. Install Requirements:
+  ```bash
+  pip install -r requirements.txt
+  ```
+3. Create a Yahoo Fantasy Sports app
+    - Go to the Yahoo Developer Dashboard
+    - Click "Create an App"
+    - Set:
+        - Application Name: (any name you want)
+        - OAuth Client Type: Confidential Client
+        - Permissions: check Fantasy Sports
+
+    - After creation, save your Client ID and Client Secret
+    - Set a placeholder Redirect URI, such as https://localhost/ (you won't need to host this)
+4.Rename and configure your Yahoo app credentials
+
+    - In the yfpyauth/ directory, rename:
+    .env.private.example → .env.private
+
+    - Open .env.private and fill in the credentials from your Yahoo Developer app:
+  ```env
+    CONSUMER_KEY=<YAHOO_API_KEY>
+    CONSUMER_SECRET=<YAHOO_API_SECRET>
+  ```
+5. Get your Yahoo Fantasy Football League ID
+
+    - Go to your Yahoo Fantasy Football league in a browser
+
+    - Look at the URL — your League ID will appear like this:
+    https://football.fantasysports.yahoo.com/f1/123456 → Your League ID is 123456
+    
+6. Rename and configure your environment file
+
+    - In the yfpyauth/ directory, rename:
+    .env.config.example → .env.config
+
+    - Open .env.config and set the following values:
+   ```env
+    LEAGUE_ID=<YOUR_LEAGUE_ID>
+    GAME_CODE=NFL
+    GAME_ID= # Leave empty to default to the current NFL season
+   ```
+7.Set up your Discord bot
+
+    - Create a Discord application and generate a bot token
+
+    - In your bot settings, enable the following:
+    <details> <summary>🔐 Required Permissions</summary>
+    Action	Permission Name	Hex Value
+    Slash command usage	applications.commands (scope only)	–
+    Send messages	Send Messages	0x00000800
+    Read message history	Read Message History	0x00010000
+    Manage roles	Manage Roles	0x10000000
+    Create public threads	Create Public Threads	0x00010000
+    Create private threads	Create Private Threads	0x00020000
+    Send messages in threads	Send Messages in Threads	0x00040000
+    Delete own messages	(No explicit permission)	–
+    </details>
+    
+    - Generate an invite link using the correct OAuth scopes and permissions (e.g., via the Discord Permissions Calculator)
+
+    - Invite the bot to your server
+    
+    Then:
+
+    In the discordauth/ directory, rename:
+    .env.discord.example → .env.discord
+
+    Fill in your Discord bot credentials:
+    ```env
+    DISCORD_TOKEN=<YOUR_DISCORD_BOT_TOKEN>
+    APP_ID=<YOUR_DISCORD_APP_ID>
+    GUILD_ID=<YOUR_DISCORD_SERVER_ID>
+    ```
+    ⚠️ GUILD_ID is needed for registering slash commands in a development/test server.
+</details>
