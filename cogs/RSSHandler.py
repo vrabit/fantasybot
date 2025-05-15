@@ -43,6 +43,9 @@ class RSSHandler(commands.Cog):
 
     async def save_queue(self,filename=RSS_QUEUE_FILE):
         async with self.feed_queue_lock:
+            if not os.path.exists(self.parent_dir / 'persistent_data'):
+                os.makedirs(self.parent_dir / 'persistent_data')
+                
             with open(self.parent_dir / 'persistent_data' / filename, 'w') as file:
                 json.dump(list(self.feed_queue), file, indent = 4)
 
