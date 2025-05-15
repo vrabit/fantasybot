@@ -96,7 +96,12 @@ class SlapChallenge(commands.Cog):
         async with self.bot.state.slaps_channel_id_lock:
             local_id = self.bot.state.slap_channel_id
 
-      
+        if local_id is None:
+            print('[SlapChallenge] - Channel not set.')
+            await channel.send("Channel not set. Please use /slap to set the channel.")
+            return
+        
+
         # gather challenger info
         challenger_name = utility.teamid_to_name(challenger_key)
         challenger_discord_id = utility.teamid_to_discord(challenger_key)
@@ -418,8 +423,11 @@ class SlapChallenge(commands.Cog):
         with open(self.parent_dir / 'discordauth'/ 'private.json', 'r') as file:
             data = json.load(file)
 
-        self.channel_id = int(data.get('channel_id'))
-
+        channel_id = data.get('channel_id')
+        if channel_id is not None:
+            self.bot.state.slaps_channel_id = int(channel_id)
+        else:
+            self.bot.state.slaps_channel_id = None
 
 
     ###################################################

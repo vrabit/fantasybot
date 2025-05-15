@@ -190,5 +190,6 @@ async def setup_hook():
     await load_extensions()
 
 
+
 bot.setup_hook = setup_hook
 bot.run(token)
