@@ -42,7 +42,7 @@ class MaintainFantasy(commands.Cog):
             except Exception as e:
                 print(f'[MaintainFantasy] - Error initializing Yahoo Fantasy Sports Query: {e}')
                 print(f'[MaintainFantasy] - Verify elements within yfpyauth/config.json and yfpyauth/private.json')
-                self.bot.close()
+                await self.bot.close()
                 return
             
             # Set bot state to the new fantasy query object

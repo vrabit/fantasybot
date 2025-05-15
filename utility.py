@@ -157,7 +157,6 @@ def store_matchups(data, filename:str):
 ###################################################
 
 def load_players():
-
     new_dict = {}
     with open(current_dir / 'yfpyauth'/ 'player_ids.csv','r') as file:
         csv_reader = csv.DictReader(file)
