@@ -169,3 +169,10 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
     ⚠️ GUILD_ID is needed for registering slash commands in a development/test server.
     
 </details>
+
+### Run the bot
+
+   ```bash
+   python main.py
+
+   ```
