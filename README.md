@@ -135,6 +135,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
          | Create public threads    | `Create Public Threads`                | `0x00010000` |
          | Create private threads   | `Create Private Threads`               | `0x00020000` |
          | Send messages in threads | `Send Messages in Threads`             | `0x00040000` |
+         | Send embedded messages   | `Embed Links`                          | `0x00004000` |
    
        </details>
 
