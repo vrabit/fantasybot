@@ -33,7 +33,7 @@ guild = discord.Object(id=guild_id)
 app_id = int(os.getenv('APP_ID'))
 
 # Set up the bot with all intents
-intents = discord.Intents.all()
+intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix= "$", intents = intents, application_id = app_id)
 
