@@ -14,6 +14,11 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
 
 ## Slash Commands
+
+  - [Config Commands](https://github.com/vrabit/fantasybot/wiki/Commands#-config-commands)
+  - [Fantasy Commands](https://github.com/vrabit/fantasybot/wiki/Commands#-fantasy-commands)
+  - [Utility Commands](https://github.com/vrabit/fantasybot/wiki/Commands#%EF%B8%8F-utility-commands)
+
 | Command           | Description                                 | Input                        |
 | ----------------- | ------------------------------------------- | ---------------------------- |
 | `/week_chump`     | Loser of the specified week                 | `week: int`                  |
@@ -66,7 +71,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
 ---
 
-3. Create a Yahoo Fantasy Sports app
+3. [Create a Yahoo Fantasy Sports app](https://github.com/vrabit/fantasybot/wiki/Yahoo-API#create-a-yahoo-fantasy-sports-app)
     - Go to the [Yahoo Developer Dashboard](https://developer.yahoo.com/apps/)
     - Click "Create an App"
     - Set:
@@ -76,7 +81,6 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
     - After creation, save your `Client ID` and `Client Secret`
     - Set a placeholder Redirect URI, such as `https://localhost/` (you won't need to host this)
-
 ---
 
 4. Rename and configure your Yahoo app credentials
@@ -116,7 +120,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
     ```
 ---
 
-7. Set up your Discord bot
+7. [Set up your Discord bot](https://github.com/vrabit/fantasybot/wiki/Discord-Setup#set-up-your-discord-bot)
 
     - Create a new [Discord bot application](https://discord.com/developers/applications)
 
