@@ -9,8 +9,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
 - 🏆 Fantasy standings and weekly recaps  
 - 📊 Player stat lookups and trade value comparisons  
-- 📢 NFL news integration via RSS feeds  
-- 🤖 Fun Discord commands like `/slap`  
+- 📢 NFL news integration via RSS feeds   
 - 💬 Slash command interface (no prefix spam)
 
 
@@ -119,28 +118,38 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
 7. Set up your Discord bot
 
-   - Create a new [Discord bot application](https://discord.com/developers/applications)
+    - Create a new [Discord bot application](https://discord.com/developers/applications)
 
+    - Bot Tab: `Enable Message Content Intent`
      
-    - Generate an invite link using the correct OAuth scopes and permissions (e.g., via the Discord Permissions Calculator)
+    - OAuth2 Tab: Generate an invite link using the correct OAuth scopes and permissions (e.g., via the Discord Permissions Calculator)
 
-       <details> <summary>📌🔐 Required Permissions</summary>
+       <details> <summary>📌🔐 Required OAuth2 Scopes / Permissions</summary>
           
-         | Action                   | Permission Name                        | Hex Value    |
-         | ------------------------ | -------------------------------------- | ------------ |
-         | Slash command usage      | `applications.commands` *(scope only)* | –            |
-         | Send messages            | `Send Messages`                        | `0x00000800` |
-         | Read message history     | `Read Message History`                 | `0x00010000` |
-         | Manage roles             | `Manage Roles`                         | `0x10000000` |
-         | Create public threads    | `Create Public Threads`                | `0x00010000` |
-         | Create private threads   | `Create Private Threads`               | `0x00020000` |
-         | Send messages in threads | `Send Messages in Threads`             | `0x00040000` |
-         | Send embedded messages   | `Embed Links`                          | `0x00004000` |
-         | Attach files             | `Attach Files`                         | `0x00002000` |
+         | Action                   | Permission Name                        | Hex Value             |
+         | ------------------------ | -------------------------------------- | --------------------- |
+         | Slash command usage      | `applications.commands` *(scope only)* | –                     |
+         | Bot                      | `bot` *(scope only)*                   | –                     |
+         | Manage roles             | `Manage Roles`                         | `0x10000000`          |
+         | Send messages            | `Send Messages`                        | `0x00000800`          |
+         | Create public threads    | `Create Public Threads`                | `0x00010000`          |
+         | Create private threads   | `Create Private Threads`               | `0x00020000`          |
+         | Send messages in threads | `Send Messages in Threads`             | `0x00040000`          |
+         | Manage messages          | `Manage Messages`                      | `0x00002000`          |
+         | Manage threads           | `Manage Threads`                       | `0x04000000`          |
+         | Send embedded messages   | `Embed Links`                          | `0x00004000`          |
+         | Attach files             | `Attach Files`                         | `0x00002000`          |
+         | Read message history     | `Read Message History`                 | `0x00010000`          |
+         | Add reactions            | `Add Reactions`                        | `0x00000040`          |
+         | Use slash commands       | `Use SlashCommands`                    | `0x00000800`          |
+         | Create polls             | `Create Polls`                         | `0x2000000000000`     |
+
 
        </details>
 
-    - Invite the bot to your server
+    - Set `Integration Type` Guild Install
+   
+    - Use `Generated URL` to invite the bot to your server
 
 ---
 
