@@ -109,7 +109,7 @@ class FantasyQuery(commands.Cog):
             teams = self.bot.state.fantasy_query.get_teams()
 
         for team in teams:
-            embed.add_field(name = team.name.decode("utf-8"), value = "Team ID: " + str(team.team_id))
+            embed.add_field(name = team.name.decode("utf-8"), value = "Team ID: " + str(team.team_id),inline=False)
         
         await interaction.followup.send(embed=embed,ephemeral=False)
 
