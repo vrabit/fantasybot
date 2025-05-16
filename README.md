@@ -39,7 +39,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 ### Prerequisites
    - Create a [Discord bot](https://discord.com/developers/applications)
    - Register a [Yahoo Fantasy Sports app](https://developer.yahoo.com/apps/)
-   - Aquire your [Yahoo Fantasy Football League ID](https://football.fantasysports.yahoo.com/)
+   - Acquire your [Yahoo Fantasy Football League ID](https://football.fantasysports.yahoo.com/)
 
 <details markdown="1">
    
@@ -120,7 +120,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
     - Create a new [Discord bot application](https://discord.com/developers/applications)
 
-    - Bot Tab: `Enable Message Content Intent`
+    - Bot Tab: Enable `Message Content Intent`
      
     - OAuth2 Tab: Generate an invite link using the correct OAuth scopes and permissions (e.g., via the Discord Permissions Calculator)
 
@@ -147,7 +147,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
        </details>
 
-    - Set `Integration Type` Guild Install
+    - Set `Integration Type` to Guild Install
    
     - Use `Generated URL` to invite the bot to your server
 
