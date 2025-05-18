@@ -7,6 +7,7 @@ import asyncio
 import datetime
 import os
 from pathlib import Path
+from collections import deque
 
 import utility
 
@@ -90,7 +91,7 @@ class SlapChallenge(commands.Cog):
     # Slap Callout Challenge         
     ###################################################
 
-    async def display_results(self,current_week, challenger_key, challengee_deque, member_storage):
+    async def display_results(self,current_week:int, challenger_key:int, challengee_deque:deque, member_storage:list):
         chump_role = self.loser_role_name
 
         async with self.bot.state.slaps_channel_id_lock:
@@ -103,8 +104,8 @@ class SlapChallenge(commands.Cog):
         
 
         # gather challenger info
-        challenger_name = utility.teamid_to_name(challenger_key)
-        challenger_discord_id = utility.teamid_to_discord(challenger_key)
+        challenger_name = await utility.teamid_to_name(challenger_key)
+        challenger_discord_id = await utility.teamid_to_discord(challenger_key)
         formatted_challenger_discord_id = utility.id_to_mention(challenger_discord_id)
 
         # add to array for the future
@@ -125,8 +126,8 @@ class SlapChallenge(commands.Cog):
         while challengee_deque:
             # gather current challenger info
             challengee_team_id = challengee_deque.pop()
-            challengee_name = utility.teamid_to_name(challengee_team_id)
-            challengee_discord_id = utility.teamid_to_discord(challengee_team_id)
+            challengee_name = await utility.teamid_to_name(challengee_team_id)
+            challengee_discord_id = await utility.teamid_to_discord(challengee_team_id)
             formatted_challengee_discord_id = utility.id_to_mention(challengee_discord_id)
 
             # add to array for the future
@@ -176,7 +177,7 @@ class SlapChallenge(commands.Cog):
             await channel.send(embed = embed)
 
 
-    async def iterate_deque(self,current_week, challenges_deque,member_storage):
+    async def iterate_deque(self,current_week:int, challenges_deque:dict,member_storage:list):
         for key in challenges_deque:
             await self.display_results(current_week, key, challenges_deque[key], member_storage)
 
@@ -206,7 +207,7 @@ class SlapChallenge(commands.Cog):
     async def poll_slap(self):
         date_file = self.parent_dir / 'persistent_data' / 'week_dates.json'
 
-        # storage to minimize api calls
+        # storage size of number_of_teams to minimize api calls
         members_storage = [None] * self.number_of_teams
 
         # if does not exist, create and store dates list
@@ -244,7 +245,7 @@ class SlapChallenge(commands.Cog):
 
 
     class AcceptDenyChallenge(discord.ui.View):
-        def __init__(self, challenger,challengee,challengee_teamid, challenger_teamid):
+        def __init__(self, challenger:int,challengee:int,challengee_teamid:int, challenger_teamid:int):
             super().__init__(timeout = 1800)
             self.challenger = challenger
             self.challengee = challengee
@@ -389,8 +390,8 @@ class SlapChallenge(commands.Cog):
         challengee_discord_id =discord_user.id
         challenger_discord_id = interaction.user.id
 
-        challengee_teamid = utility.discord_to_teamid(challengee_discord_id)
-        challenger_teamid = utility.discord_to_teamid(challenger_discord_id)
+        challengee_teamid = await utility.discord_to_teamid(challengee_discord_id)
+        challenger_teamid = await utility.discord_to_teamid(challenger_discord_id)
 
         description_text = f'{utility.id_to_mention(challenger_discord_id)} challenged {utility.id_to_mention(challengee_discord_id)} to a duel.'
         embed = discord.Embed(title = 'Slap', description = description_text,color = self.emb_color)

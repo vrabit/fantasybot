@@ -11,6 +11,8 @@ sys.path.insert(0, str(project_dir))
 from yfpy import Data
 from yfpy.logger import get_logger
 
+import os
+
 import utility
 
 
@@ -40,7 +42,9 @@ class fantasyQuery:
 
     @property
     def SEASON(self):
-        return 2024
+        if self._season is None:
+            self._season = int(os.getenv('SEASON_YEAR'))
+        return self._season
 
 
     def __init__(self, yahoo_query):
@@ -48,6 +52,7 @@ class fantasyQuery:
         self.player_dict = utility.load_players()
         self.stat_dict = utility.create_stat_file(self.get_stat_categories())
         self.league_key = self.yahoo_query.get_league_key()
+        self._season = None
 
 
     def get_player_id(self, name):

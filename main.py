@@ -5,7 +5,6 @@ from pathlib import Path
 
 import os
 from dotenv import load_dotenv
-import os
 
 import signal
 import asyncio

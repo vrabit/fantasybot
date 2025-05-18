@@ -18,10 +18,12 @@ member_lock = asyncio.Lock()
 ###################################################
 # load and store private.json file
 ###################################################
-async def private_json_creator(file_path):
+async def private_json_creator(file_path:str) -> dict:
     """Create private.json file if it does not exist.
     Args:
         file_path (str): Path to the private.json file
+    Returns:
+        dict: Data from private.json
     """
     async with private_lock:
     # create private.json file
@@ -36,9 +38,10 @@ async def private_json_creator(file_path):
 
 
 def get_private_data() -> dict:
-    """Load discord private.json file.
-    Returns:
-        dict: Data from private.json
+    """
+    Load discord private.json file.
+        Returns:
+            dict: Data from private.json
     """
     # load private.json file
     with open(current_dir / 'discordauth'/ 'private.json','r') as file:
@@ -46,10 +49,11 @@ def get_private_data() -> dict:
     return data
 
 
-def store_private_data(data) -> None:
-    """Store discord private.json file.
-    Args:
-        data (dict): Data to be stored in private.json
+def store_private_data(data:dict) -> None:
+    """
+    Store discord private.json file.
+        Args:
+            data (dict): Data to be stored in private.json
     """
     # store private.json file
     with open(current_dir / 'discordauth'/ 'private.json','w') as file:
@@ -57,9 +61,10 @@ def store_private_data(data) -> None:
 
 
 async def get_private_discord_data_async() -> dict:
-    """Load discord private.json file asynchronously.
-    Returns:
-        dict: Data from private.json
+    """
+    Load discord private.json file asynchronously.
+        Returns:
+            dict: Data from private.json
     """
     file_path = current_dir / 'discordauth' / 'private.json'
     if file_path.exists():
@@ -72,10 +77,11 @@ async def get_private_discord_data_async() -> dict:
         return await private_json_creator(file_path)
 
 
-async def set_private_discord_data_async(data) -> None:
-    """Store discord private.json file asynchronously.
-    Args:
-        data (dict): Data to be stored in private.json
+async def set_private_discord_data_async(data:dict) -> None:
+    """
+    Store discord private.json file asynchronously.
+        Args:
+            data (dict): Data to be stored in private.json
     """
     file_path = current_dir / 'discordauth' / 'private.json'
     async with private_lock:
@@ -88,75 +94,34 @@ async def set_private_discord_data_async(data) -> None:
 # store obj
 ###################################################
 
-def serialize_matchups(scoreboard):
-    """Serialize matchups data to a dictionary.
-    Args:
-        scoreboard (object): YFPY Scoreboard object
-    Returns:    
-        dict: Serialized matchups data
+async def store_matchups(serialized_data:dict, filename:str):
     """
-    def to_serializable(value):
-        if isinstance(value, bytes):
-            return value.decode('utf-8')
-        return value
-
-    matchups_dict = {}
-    matchups_list = scoreboard.matchups
-
-    for i in range(len(matchups_list)):
-        team_list = matchups_list[i].teams
-
-        individual_dict_1 = {}
-        individual_dict_2 = {}
-        if len(team_list) == 2:
-            individual_dict_1['name'] = to_serializable(team_list[0].name)
-            individual_dict_1['id'] = to_serializable(team_list[0].team_id)
-            individual_dict_1['points'] = team_list[0].team_points.total
-            individual_dict_1['week'] = team_list[0].team_points.week
-            individual_dict_1['team_key'] = to_serializable(team_list[0].team_key)
-            individual_dict_1['faab'] = team_list[0].faab_balance
-            individual_dict_1['opponent_id'] = to_serializable(team_list[1].team_id)
-            individual_dict_1['opponent_name'] = to_serializable(team_list[1].name)
-
-            individual_dict_2['name'] = to_serializable(team_list[1].name)
-            individual_dict_2['id'] = to_serializable(team_list[1].team_id)
-            individual_dict_2['points'] = team_list[1].team_points.total
-            individual_dict_2['week'] = team_list[1].team_points.week
-            individual_dict_2['team_key'] = to_serializable(team_list[1].team_key)
-            individual_dict_2['faab'] = team_list[1].faab_balance
-            individual_dict_2['opponent_id'] = to_serializable(team_list[0].team_id)
-            individual_dict_2['opponent_name'] = to_serializable(team_list[0].name)
-
-            matchups_dict[individual_dict_1['id']] = individual_dict_1
-            matchups_dict[individual_dict_2['id']] = individual_dict_2
-        else:
-            individual_dict_1['name'] = to_serializable(team_list[0].name)
-            individual_dict_1['id'] = to_serializable(team_list[0].team_id)
-            individual_dict_1['points'] = team_list[0].team_points.total
-            individual_dict_1['week'] = team_list[0].team_points.week
-            individual_dict_1['team_key'] = to_serializable(team_list[0].team_key)
-            individual_dict_1['faab'] = team_list[0].faab_balance
-            individual_dict_1['opponent_id'] = 'NONE'
-            individual_dict_1['opponent_name'] = 'NONE'
-
-    return matchups_dict
-
- 
-def store_matchups(data, filename:str):
+    Store serialized data to a JSON file.
+        Args:
+            serialized_data (dict): Data to be stored
+            filename (str): Name of the file to store the data
+        Returns:
+            None
+    """
     recap_dir = current_dir / 'recap'
-    os.makedirs(recap_dir,exist_ok=True)
+    if not os.path.exists(recap_dir):
+        os.makedirs(recap_dir,exist_ok=True)
 
-    serialized_data = serialize_matchups(data)
-
-    with open(current_dir / 'recap' / filename,'w') as file:
-        json.dump(serialized_data, file, indent = 2)
+    if not os.path.exists(current_dir / 'recap' / filename):
+        with open(current_dir / 'recap' / filename,'w') as file:
+            json.dump(serialized_data, file, indent = 2)
 
 
 ###################################################
 # player ID          
 ###################################################
 
-def load_players():
+def load_players() -> dict:
+    """
+    Load player IDs from the player_ids.csv file.
+        Returns:
+            dict: Dictionary of yahoo names and their corresponding IDs
+    """
     new_dict = {}
     with open(current_dir / 'yfpyauth'/ 'player_ids.csv','r') as file:
         csv_reader = csv.DictReader(file)
@@ -253,11 +218,19 @@ def construct_date_list(gameweek_list):
 ###############################################
 
 def clear_challenges():
+    """Clear the challenges.json file.
+        Returns:
+            None
+    """
     with open(current_dir/ 'persistent_data'/ 'challenges.json', 'w') as file:
         json.dump({},file)
 
 
 def load_challenges():
+    """Load challenges from the challenges.json file.
+        Returns:
+            dict: Dictionary of challenges
+    """
     challenges_file = current_dir/ 'persistent_data'/ 'challenges.json'
 
     if os.path.exists(challenges_file):
@@ -276,7 +249,13 @@ def load_challenges():
     return challenges
 
 
-def save_challenges(challenges):
+def save_challenges(challenges:dict):
+    """Save challenges to the challenges.json file.
+        Args:
+            challenges (dict): Dictionary of challenges to save
+        Returns:
+            None
+        """
     serializable = {}
     for key, value in challenges.items():
         serializable[key] = list(value)
@@ -285,11 +264,27 @@ def save_challenges(challenges):
         json.dump(serializable, file, indent = 4)
 
 
-def check_queue_exists(queue, team_id):
+def check_queue_exists(queue:deque, team_id:int):
+    """Check if a team ID exists in a queue.
+        Args:
+            queue (deque): The queue to check
+            team_id (int): Team ID to check for
+            
+        Returns:
+            bool: True if the team ID exists in the queue, False otherwise
+        """
     return team_id in queue
 
 
-def check_exists(challenger_team_id, challengee_team_id, challenges):
+def check_exists(challenger_team_id:int, challengee_team_id:int, challenges:dict):
+    """Check if a challenge exists in the challenges.json file.
+        Args:
+            challenger_team_id (int): Team ID of the challenger
+            challengee_team_id (int): Team ID of the challengee
+            
+        Returns:
+            bool: True if the challenge exists, False otherwise
+        """
     challenger_queue = challenges.get(challenger_team_id)
     challengee_queue = challenges.get(challengee_team_id)
     
@@ -302,7 +297,15 @@ def check_exists(challenger_team_id, challengee_team_id, challenges):
     return False
 
 
-def add_challenges(challenger_team_id, challengee_team_id):
+def add_challenges(challenger_team_id:int, challengee_team_id:int):
+    """Add a challenge to the challenges.json file.
+        Args:
+            challenger_team_id (int): Team ID of the challenger
+            challengee_team_id (int): Team ID of the challengee
+            
+        Returns:
+            None
+        """
     # load challenges
     challenges = load_challenges()
 
@@ -366,9 +369,10 @@ def format_member(member,id):
     return new_mem
 
 
-def append_memlist_member(member, id):
-    with open(current_dir / 'persistent_data'/ 'members.json', 'r') as read_file:
-        members =json.load(read_file)
+async def append_memlist_member(member, id):
+    async with member_lock:
+        with open(current_dir / 'persistent_data'/ 'members.json', 'r') as read_file:
+            members =json.load(read_file)
 
     members.append(format_member(member,id))
 
@@ -376,9 +380,17 @@ def append_memlist_member(member, id):
         json.dump(members, write_file, indent = 4)
 
 
-def teamid_to_discord(team_id):
-    with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
-        members = json.load(file)
+async def teamid_to_discord(team_id:int)-> str | None:
+    """
+    Convert team id to discord id.
+        Args:
+            team_id (int): Team id
+        Returns:
+            str: Discord id
+    """
+    async with member_lock:
+        with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
+            members = json.load(file)
 
     for i in range(len(members)):
         if members[i].get('id') == str(team_id):
@@ -387,9 +399,17 @@ def teamid_to_discord(team_id):
     return None
 
 
-def teamid_to_name(team_id):
-    with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
-        members = json.load(file)
+async def teamid_to_name(team_id:int) -> str | None:
+    """
+    Convert team id to name.
+        Args:
+            team_id (int): Team id
+        Returns:
+            str: Team name
+    """
+    async with member_lock:
+        with open(current_dir / 'persistent_data'/ 'members.json', 'r') as file:
+            members = json.load(file)
 
     for i in range(len(members)):
         if members[i].get('id') == str(team_id):
@@ -398,9 +418,17 @@ def teamid_to_name(team_id):
     return None
 
 
-def discord_to_teamid(discord_id):
-    with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
-        members = json.load(file)
+async def discord_to_teamid(discord_id:int) -> int | None:
+    '''
+    Convert discord id to team id
+        Args:
+            discord_id (int): Discord id
+        Returns:
+            str: Team_id
+    '''
+    async with member_lock:
+        with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
+            members = json.load(file)
 
     for i in range(len(members)):
         if members[i].get('discord_id') == str(discord_id):
@@ -409,9 +437,17 @@ def discord_to_teamid(discord_id):
     return None
 
 
-def discord_to_name(discord_id):
-    with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
-        members = json.load(file)
+async def discord_to_name(discord_id:int) -> str | None:
+    """
+    Convert discord id to name
+        Args:
+            discord_id (int): Discord id
+        Returns:
+            str: Team name
+    """
+    async with member_lock:
+        with open(current_dir/ 'persistent_data'/ 'members.json', 'r') as file:
+            members = json.load(file)
 
     for i in range(len(members)):
         if members[i].get('discord_id') == str(discord_id):
@@ -420,31 +456,25 @@ def discord_to_name(discord_id):
     return None
     
 
-def id_to_mention(user):
+def id_to_mention(user) -> str:
+    """ 
+    Convert user id to mention format.
+        Args:
+            user (int): User id
+        Returns:
+            str: User mention in the format <@user_id>
+    """
     return '<@'+str(user) + '>'
 
 
-def list_to_mention(member_list):
-    message = ''
-    for i in range(len(member_list)):
-        if i == len(member_list) - 1:
-            message += id_to_mention(member_list[i])
-        else:
-            message += id_to_mention(member_list[i]) + ' '
-    return message
-
-
-def list_to_str(arg_list):
-    message = ''
-    for i in range(len(arg_list)):
-        if i == len(arg_list) - 1:
-            message += arg_list[i].capitalize()
-        else:
-            message += arg_list[i].capitalize() + ' '
-    return message
-
-
-def arg_to_int(arg):
+def arg_to_int(arg:int | float | str | bool) -> int | None:
+    """
+    Convert argument to int.
+        Args:
+            arg (int | float | str | bool): Argument to convert
+        Returns:
+            int | None: Converted integer or None if conversion fails
+    """
     try:
         to_int = int(arg)
         return to_int
@@ -453,14 +483,15 @@ def arg_to_int(arg):
         return None
 
 
-def print_list(list):
-    for element in list:
-        print(element)
-        print('\n')
-
-
 # Capitalizes words - numbers are blue
 def to_red_text(text):
+    """
+    Convert text to red capitalized text.
+        Args:
+            text (str): Text to convert
+        Returns:
+            str: Converted text in red capitalized format
+    """
     modified = string.capwords(text)
     return f"```ml\n- {modified}\n```"
 

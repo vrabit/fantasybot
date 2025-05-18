@@ -8,6 +8,7 @@ import asyncio
 from pathlib import Path
 
 from difflib import get_close_matches
+from yfpy.models import Scoreboard
 
 import datetime
 
@@ -221,7 +222,7 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use lowest_id to mention discord user 
-        discord_user = utility.teamid_to_discord(lowest_id)
+        discord_user = await utility.teamid_to_discord(lowest_id)
 
         # check if user exists
         if discord_user is None:
@@ -301,7 +302,7 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use lowest_id to mention discord user 
-        discord_user = utility.teamid_to_discord(lowest_id)
+        discord_user = await utility.teamid_to_discord(lowest_id)
 
         # check if user exists
         if discord_user is None:
@@ -381,7 +382,7 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use highest_id to mention discord user 
-        discord_user = utility.teamid_to_discord(highest_id)
+        discord_user = await utility.teamid_to_discord(highest_id)
 
         # check if user exists
         if discord_user is None:
@@ -435,7 +436,7 @@ class FantasyQuery(commands.Cog):
 
         week = fantasy_league.current_week
 
-        # search for lowerst points
+        # search for lowest points
         current_highest = -1
             
         async with self.bot.state.fantasy_query_lock:
@@ -463,7 +464,7 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use highest_id to mention discord user 
-        discord_user = utility.teamid_to_discord(highest_id)
+        discord_user = await utility.teamid_to_discord(highest_id)
 
         # check if user exists
         if discord_user is None:
@@ -865,6 +866,62 @@ class FantasyQuery(commands.Cog):
     # Recap
     ###################################################
 
+    async def serialize_matchups(self,scoreboard:Scoreboard):
+        """
+        Serialize matchups data to a dictionary.
+            Args:
+                scoreboard (object): YFPY Scoreboard object
+            Returns:    
+                dict: Serialized matchups data
+        """
+  
+        def to_serializable(value):
+            if isinstance(value, bytes):
+                return value.decode('utf-8')
+            return value
+
+        matchups_dict = {}
+        matchups_list = scoreboard.matchups
+
+        for i in range(len(matchups_list)):
+            team_list = matchups_list[i].teams
+
+            individual_dict_1 = {}
+            individual_dict_2 = {}
+            if len(team_list) == 2:
+                individual_dict_1['name'] = to_serializable(team_list[0].name)
+                individual_dict_1['id'] = to_serializable(team_list[0].team_id)
+                individual_dict_1['points'] = team_list[0].team_points.total
+                individual_dict_1['week'] = team_list[0].team_points.week
+                individual_dict_1['team_key'] = to_serializable(team_list[0].team_key)
+                individual_dict_1['faab'] = team_list[0].faab_balance
+                individual_dict_1['opponent_id'] = to_serializable(team_list[1].team_id)
+                individual_dict_1['opponent_name'] = to_serializable(team_list[1].name)
+
+                individual_dict_2['name'] = to_serializable(team_list[1].name)
+                individual_dict_2['id'] = to_serializable(team_list[1].team_id)
+                individual_dict_2['points'] = team_list[1].team_points.total
+                individual_dict_2['week'] = team_list[1].team_points.week
+                individual_dict_2['team_key'] = to_serializable(team_list[1].team_key)
+                individual_dict_2['faab'] = team_list[1].faab_balance
+                individual_dict_2['opponent_id'] = to_serializable(team_list[0].team_id)
+                individual_dict_2['opponent_name'] = to_serializable(team_list[0].name)
+
+                matchups_dict[individual_dict_1['id']] = individual_dict_1
+                matchups_dict[individual_dict_2['id']] = individual_dict_2
+            else:
+                individual_dict_1['name'] = to_serializable(team_list[0].name)
+                individual_dict_1['id'] = to_serializable(team_list[0].team_id)
+                individual_dict_1['points'] = team_list[0].team_points.total
+                individual_dict_1['week'] = team_list[0].team_points.week
+                individual_dict_1['team_key'] = to_serializable(team_list[0].team_key)
+                individual_dict_1['faab'] = team_list[0].faab_balance
+                individual_dict_1['opponent_id'] = 'NONE'
+                individual_dict_1['opponent_name'] = 'NONE'
+
+        return matchups_dict
+
+
     async def log_season(self,fantasy_league_info):
         #for every week log the matchup results
         for i in range(fantasy_league_info.start_week, fantasy_league_info.end_week + 1):
@@ -873,7 +930,8 @@ class FantasyQuery(commands.Cog):
                 current_week_obj = self.bot.state.fantasy_query.get_scoreboard(i)
 
             filename = f"week_{i}_matchup.json"
-            utility.store_matchups(current_week_obj,filename)
+            serialized_data = await self.serialize_matchups(current_week_obj)
+            await utility.store_matchups(serialized_data,filename)
 
 
     @tasks.loop(minutes=1440)
