@@ -14,6 +14,7 @@ current_dir = Path(__file__).parent
 EMPTY = '\u001b'
 private_lock = asyncio.Lock()
 member_lock = asyncio.Lock()
+week_dates_lock = asyncio.Lock()
 
 ###################################################
 # load and store private.json file
@@ -188,30 +189,31 @@ def create_stat_file(categories):
 # Setup persistent week dates          
 ###################################################
 
-def load_dates():
+async def load_dates() -> dict:
+    """
+    Load week dates from the week_dates.json file.
+        Returns:
+            dict: Dictionary of week dates - current_week:[start_date, end_date] 
+    """
     date_file = current_dir / 'persistent_data' / 'week_dates.json'
 
-    with open(date_file,'r') as file:
-        dates_list = json.load(file)
+    async with week_dates_lock:
+        if os.path.exists(date_file):
+            with open(date_file,'r') as file:
+                dates_list = json.load(file)
+        else:
+            return {}
 
     return dates_list
 
 
-def store_dates(dates_dict):
+async def store_dates(dates_dict):
     date_file = current_dir / 'persistent_data' / 'week_dates.json'
 
-    with open(date_file, 'w') as file:
-        json.dump(dates_dict, file, indent = 4)
+    async with week_dates_lock:
+        with open(date_file, 'w') as file:
+            json.dump(dates_dict, file, indent = 4)
 
-
-def construct_date_list(gameweek_list):
-    dates_dict = {}
-    for i in range(len(gameweek_list)):
-        week = gameweek_list[i]['game_week'].week
-        current_entry = [gameweek_list[i]['game_week'].start,gameweek_list[i]['game_week'].end]
-        dates_dict[week] = current_entry
-
-    return dates_dict
 
 ###############################################
 # create and maintain current slap challenges

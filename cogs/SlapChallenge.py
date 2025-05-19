@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from collections import deque
 
+from yfpy.models import GameWeek
+
 import utility
 
 
@@ -18,16 +20,15 @@ class SlapChallenge(commands.Cog):
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
 
-        """
-        self.channel_id = None
-        self.channel_id_lock = asyncio.Lock()
-        """
         # keep track of active view instances
         self.active_views = []
         self.active_views_lock = asyncio.Lock()
 
         # bot embed color
         self.emb_color = self.bot.state.emb_color
+
+        # fantasy league (League)
+        self.fantasy_league = None
 
         # Slap 
         self.loser_role_name = 'King Chump'
@@ -39,6 +40,7 @@ class SlapChallenge(commands.Cog):
         self.timeout_gif = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3d4NjExNmFqczAyOGltb2hveXl4OHNlcGdwc2d1eGxsaWRldnNrciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/XKPFjQAYe4l3nLxcr7/giphy.gif'
 
         self.setup_discord()
+        self.poll_slap.start()
 
 
     ###################################################
@@ -92,6 +94,17 @@ class SlapChallenge(commands.Cog):
     ###################################################
 
     async def display_results(self,current_week:int, challenger_key:int, challengee_deque:deque, member_storage:list):
+        """
+            Display the results of the slap challenge.
+            Args:
+                current_week (int): The current week of the fantasy league.
+                challenger_key (int): The team ID of the challenger.
+                challengee_deque (deque): A deque containing the team IDs of the challengees.
+                member_storage (list): List to store team stats for each member.
+            Returns:
+                None
+        """
+        # get guild role name
         chump_role = self.loser_role_name
 
         async with self.bot.state.slaps_channel_id_lock:
@@ -101,14 +114,13 @@ class SlapChallenge(commands.Cog):
             print('[SlapChallenge] - Channel not set.')
             await channel.send("Channel not set. Please use /slap to set the channel.")
             return
-        
 
         # gather challenger info
         challenger_name = await utility.teamid_to_name(challenger_key)
         challenger_discord_id = await utility.teamid_to_discord(challenger_key)
         formatted_challenger_discord_id = utility.id_to_mention(challenger_discord_id)
 
-        # add to array for the future
+        # load challenger stats into array if not already loaded
         if member_storage[int(challenger_key) - 1] is None:
             async with self.bot.state.fantasy_query_lock:
                 challenger_stats = self.bot.state.fantasy_query.get_team_stats(current_week,int(challenger_key))
@@ -178,6 +190,15 @@ class SlapChallenge(commands.Cog):
 
 
     async def iterate_deque(self,current_week:int, challenges_deque:dict,member_storage:list):
+        """
+            Iterate through the deque and display results for each challenge.
+            Args:
+                current_week (int): The current week of the fantasy league.
+                challenges_deque (dict): The deque containing challenges. {challenger_id: deque(challengee_ids)}
+                member_storage (list): List to store team stats for each member.
+            Returns:
+                None
+        """
         for key in challenges_deque:
             await self.display_results(current_week, key, challenges_deque[key], member_storage)
 
@@ -185,7 +206,7 @@ class SlapChallenge(commands.Cog):
     @tasks.loop(minutes=1440)
     async def remove_slap_roles(self):
         # load dates list
-        loaded_dates = utility.load_dates()
+        loaded_dates = await utility.load_dates()
 
         # current week
         async with self.bot.state.fantasy_query_lock:
@@ -203,43 +224,78 @@ class SlapChallenge(commands.Cog):
             await self.remove_role_members(self.denier_role_name)
 
 
+    async def construct_date_list(self,gameweek_list:list[GameWeek]) -> dict:
+        """
+        Constructs a dictionary of game week dates from the gameweek list.
+            
+            Args:
+                gameweek_list (list): List of GameWeek.
+
+            Returns:
+                dict: Dictionary with game week numbers as keys and start/end dates as values.
+        """
+        print('[SlapChallenge] - Constructing date list')
+        dates_dict = {}
+        for gameweek in gameweek_list:
+            current_entry = [gameweek.start,gameweek.end]
+            dates_dict[gameweek.week] = current_entry
+
+        print("[SlapChallenge] - Date list constructed")
+        return dates_dict
+
     @tasks.loop(minutes=1440)
     async def poll_slap(self):
-        date_file = self.parent_dir / 'persistent_data' / 'week_dates.json'
+        # wait for fantasy object to be set up
+        await asyncio.sleep(30)
 
-        # storage size of number_of_teams to minimize api calls
-        members_storage = [None] * self.number_of_teams
+        date_file = self.parent_dir / 'persistent_data' / 'week_dates.json'
 
         # if does not exist, create and store dates list
         exists = os.path.exists(date_file)
         if not exists:
+            print('[SlapChallenge] - Dates file does not exist. Creating new one.')
             async with self.bot.state.fantasy_query_lock:
-                dates_list = utility.construct_date_list(self.bot.state.fantasy_query.get_game_weeks()['game_weeks'])
-            utility.store_dates(dates_list)
+                dates_dict = await self.construct_date_list(self.bot.state.fantasy_query.get_game_weeks_by_game_id())
+                await utility.store_dates(dates_dict)
 
         # load dates list
-        loaded_dates = utility.load_dates()
+        loaded_dates = await utility.load_dates()
 
-        async with self.bot.state.fantasy_query_lock:
-            # current week
-            fantasy_league = self.bot.state.fantasy_query.get_league()['league']   
-        current_week = fantasy_league.current_week
-        last_week = current_week - 1
+        if self.fantasy_league is None:
+            async with self.bot.state.fantasy_query_lock:
+                self.fantasy_league = self.bot.state.fantasy_query.get_league()['league']   
 
         # check if season is over
-        start_date = loaded_dates.get(str(current_week))
-        if start_date is None:
+        today_obj = datetime.date.today()
+        season_end_obj = datetime.datetime.strptime(self.fantasy_league.end_date, '%Y-%m-%d').date()
+        if today_obj > season_end_obj:
             print('[SlapChallenge] - Season Ended')
             return
 
-        # get last weeks end date and compare to today-1 
-        end_date = loaded_dates.get(str(last_week))
-        end_obj = datetime.datetime.strptime(end_date[1], '%Y-%m-%d').date() 
-        yesterday_obj = datetime.date.today() - datetime.timedelta(days = 1)
+        # Check if we are in week 1 
+        current_week = self.fantasy_league.current_week
+        last_week = current_week - 1
+        last_weeks_dates = loaded_dates.get(str(last_week))
 
-        if yesterday_obj == end_obj:
+        if last_weeks_dates is None:
+            print('[SlapChallenge] - Still in week 1')
+            return
+
+        last_week_end_date_obj = datetime.datetime.strptime(last_weeks_dates[1], '%Y-%m-%d').date() 
+        yesterday_date_obj = datetime.date.today() - datetime.timedelta(days = 1)
+
+
+        # check if yesterday was the end of the week
+        if yesterday_date_obj == last_week_end_date_obj:
             # pop all challenges from deque
             current_challenges = utility.load_challenges()
+
+            if not current_challenges:
+                print('[SlapChallenge] - No challenges to process')
+                return
+             
+            # member storage to prevent repeated calls to get_team_stats
+            members_storage = [None] * self.fantasy_league.num_teams
             await self.iterate_deque(current_week, current_challenges,members_storage)
             utility.clear_challenges()
 
@@ -364,7 +420,7 @@ class SlapChallenge(commands.Cog):
         await self.setup_slap_channel(interaction.channel.id)
             
         # add challenges if not on the start date
-        loaded_dates = utility.load_dates()
+        loaded_dates = await utility.load_dates()
 
         async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.state.fantasy_query.get_league()['league']
