@@ -1,4 +1,5 @@
 {
     "channel_id" :null,
     "news_channel_id":null
+    "transactions_channel_id":null
 }
