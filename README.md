@@ -9,7 +9,8 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
 
 - 🏆 Fantasy standings and weekly recaps  
 - 📊 Player stat lookups and trade value comparisons  
-- 📢 NFL news integration via RSS feeds   
+- 📢 NFL news integration via RSS feeds
+- 🔄 Yahoo transaction updates automatically posted to a designated Discord channel
 - 💬 Slash command interface (no prefix spam)
 
 
