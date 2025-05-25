@@ -128,12 +128,11 @@ class SlapChallenge(commands.Cog):
             challenger_stats = member_storage[int(challenger_key) - 1]
 
         # get channel for message and guild.roles
-        """
-        channel = self.bot.get_channel(local_id)
+        channel = self.bot.get_channel(int(local_id))
+        if channel is None:
+            channel = await self.bot.fetch_channel(int(local_id))
+
         guild = channel.guild
-        """
-        channel = self.bot.get_channel(local_id)
-        guild = self.bot.state.guild
         while challengee_deque:
             # gather current challenger info
             challengee_team_id = challengee_deque.pop()
