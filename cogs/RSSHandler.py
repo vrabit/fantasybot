@@ -7,7 +7,6 @@ import json
 import os
 from collections import deque
 
-import aiohttp 
 import feedparser
 
 import utility
@@ -63,6 +62,7 @@ class RSSHandler(commands.Cog):
             response_text = await response.text()
             return response_text
 
+
     async def send_rss(self,value):
         print('[RSSHandler] - Sending RSS')
         async with self.bot.state.news_channel_id_lock:
@@ -83,7 +83,7 @@ class RSSHandler(commands.Cog):
 
         embed.add_field(name = '', value=detail)
         message = await channel.send(embed = embed)
-        thread = await message.create_thread(name=title, auto_archive_duration=1440)
+        await message.create_thread(name=title, auto_archive_duration=1440)
 
 
     async def verify_news_channel(self):
@@ -161,6 +161,7 @@ class RSSHandler(commands.Cog):
                 print('[RSSHandler] - Invalid news channel ID')
                 return None
         return int(data.get('news_channel_id'))
+
 
     @commands.Cog.listener()
     async def on_ready(self):

@@ -1,20 +1,11 @@
-import os
-import sys
-from logging import DEBUG
-from pathlib import Path
-
-from dotenv import load_dotenv
-
-project_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(project_dir))
-
-from yfpy import Data
-from yfpy.logger import get_logger
+#from pathlib import Path
 
 import os
-
 import utility
 
+# 
+#project_dir = Path(__file__).parent.parent
+#sys.path.insert(0, str(project_dir))
 
 #player_url = self.constants.LEAGUE_URL+'/players;player_keys=449.p.30123/stats;type=week;week=2'
 #player_url = self.constants.LEAGUE_URL+ '/players;player_keys=449.p.30123/ownership;type=week;week=2'
@@ -37,14 +28,12 @@ class fantasyQuery:
 
     @property
     def TRANSACTIONS_URL(self):
-        return 'https://fantasysports.yahooapis.com/fantasy/v2/transaction//'
+        return 'https://fantasysports.yahooapis.com/fantasy/v2/league/' + self.yahoo_query.get_league_key() + '/transactions'
     
 
     @property
     def SEASON(self):
-        if self._season is None:
-            self._season = int(os.getenv('SEASON_YEAR'))
-        return self._season
+        return self.league.season
 
 
     def __init__(self, yahoo_query):
@@ -52,16 +41,17 @@ class fantasyQuery:
         self.player_dict = utility.load_players()
         self.stat_dict = utility.create_stat_file(self.get_stat_categories())
         self.league_key = self.yahoo_query.get_league_key()
-        self._season = None
+        self.league = self.get_league()['league']
 
 
     def get_player_id(self, name):
         return self.player_dict.get(name)
 
 
+    # FIX THIS, NEVER CALLED 
     def team_info(self):
         print('called...')
-        teams = self.yahoo_query.get_league_teams()
+        #teams = self.yahoo_query.get_league_teams()
         curr_data = repr(self.yahoo_query.get_league_teams())
         print(curr_data)
         return curr_data
@@ -96,6 +86,19 @@ class fantasyQuery:
         league_url = self.LEAGUE_URL
         return self.yahoo_query.query(league_url,[],data_type_class=None, sort_function=None)
         
+
+    def get_league_info(self):
+        return self.yahoo_query.get_league_info()
+    
+
+    def check_recent_transactions(self,start=0,count=25):
+        response = self.yahoo_query.query(f'{self.TRANSACTIONS_URL};start={start};count={count}',[],data_type_class=None, sort_function=None)
+        return response
+    
+
+    def pull_batch_transactions(self,start,count=25):
+        return self.yahoo_query.query(f'{self.TRANSACTIONS_URL};start={start};count={count}',[],data_type_class=None, sort_function=None)
+
 
     def get_game(self):
         game_url = self.GAME_URL + self.yahoo_query.get_game_key_by_season(self.SEASON)
@@ -140,11 +143,6 @@ class fantasyQuery:
         game_id = self.yahoo_query.game_id
         return self.yahoo_query.get_game_stat_categories_by_game_id(game_id)
 
-
-    def get_league_transactions(self):
-        game_id = self.yahoo_query.game_id
-        player_url = self.TRANSACTIONS_URL
-        return self.yahoo_query.query(player_url,[],data_type_class=None, sort_function=None)
 
     def get_game_weeks_by_game_id(self):
         return self.yahoo_query.get_game_weeks_by_game_id(self.yahoo_query.game_id)

@@ -51,7 +51,7 @@ class FantasyQuery(commands.Cog):
             if filename.is_file() and filename.endswith('py') and not filename.startswith('__'):
                 print(f'[FantasyQuery] - Reload {filename}')
                 await self.bot.load_extension(f'cogs.{filename[:-3]}')
-            await interaction.response.send_message(f'Reload Done')
+            await interaction.response.send_message('Reload Done')
 
 
     @app_commands.command(name="all_commands", description="List of all available commands.")
@@ -144,7 +144,7 @@ class FantasyQuery(commands.Cog):
 
         value = utility.arg_to_int(id)
 
-        if value != None and (value >= 1 or value <= 10):
+        if value is not None and (value >= 1 or value <= 10):
             await utility.bind_discord_async(value,discord_id)
             await interaction.response.send_message(f'Team ID: {value} bound to Discord ID: {utility.id_to_mention(discord_id)}',ephemeral=True)
         else:
@@ -155,14 +155,14 @@ class FantasyQuery(commands.Cog):
     @app_commands.describe(discord_user="Tagged Discord User",id="Yahoo team ID")
     async def bind_other(self, interaction:discord.Interaction, discord_user:discord.User, id:int):
 
-        if id != None and (id >= 1 or id <= 10):
+        if id is not None and (id >= 1 or id <= 10):
             await utility.bind_discord_async(id,discord_user.id)
             await interaction.response.send_message(f'Team ID: {id} bound to Discord ID: {utility.id_to_mention(discord_user.id)}',ephemeral=True)
         else:
             await interaction.response.send_message('Integer between 1 - 10',ephemeral=True)
 
 
-    @app_commands.command(name="set_news",description="Set current channel to news channel")
+    @app_commands.command(name="set_news",description="Set current channel to News channel")
     async def set_channel(self,interaction:discord.Interaction):
         async with self.bot.state.news_channel_id_lock:
             self.bot.state.news_channel_id = interaction.channel_id
@@ -175,7 +175,7 @@ class FantasyQuery(commands.Cog):
         await interaction.response.send_message('News Channel Set.')
 
 
-    @app_commands.command(name="set_slap_channel",description="Set current channel to slap channel")
+    @app_commands.command(name="set_slap_channel",description="Set current channel to Slap channel")
     async def set_slap_channel(self,interaction:discord.Interaction):
         async with self.bot.state.slaps_channel_id_lock:
             self.bot.state.slap_channel_id = interaction.channel_id
@@ -185,7 +185,20 @@ class FantasyQuery(commands.Cog):
         data.update({'channel_id': interaction.channel_id})
         await utility.set_private_discord_data_async(data)
 
-        await interaction.response.send_message('News Channel Set.')
+        await interaction.response.send_message('Slap Channel Set.')
+
+
+    @app_commands.command(name="set_transactions_channel",description="Set current channel to Transactions channel")
+    async def set_transactions_channel(self,interaction:discord.Interaction):
+        async with self.bot.state.transactions_channel_id_lock:
+            self.bot.state.transactions_channel_id = interaction.channel_id
+
+        # save channel id to persistent data
+        data = await utility.get_private_discord_data_async()
+        data.update({'transactions_channel_id': interaction.channel_id})
+        await utility.set_private_discord_data_async(data)
+
+        await interaction.response.send_message('Transactions Channel Set.')
 
 
     @app_commands.command(name="week_chump",description="Loser of the specified week")
@@ -572,7 +585,7 @@ class FantasyQuery(commands.Cog):
         closest_keys = get_close_matches(player_name,player_list,n=1,cutoff=0.6)
         
         if len(closest_keys) == 0:
-             await interaction.followup.send("Doesn't exit or you need to spell better.")
+             await interaction.followup.send("Doesn't exist or you need to spell better.")
              return
 
         if closest_keys[0] == player_name:
@@ -629,7 +642,7 @@ class FantasyQuery(commands.Cog):
 
         # load names 
         players_dict_list = utility.load_members()
-        embed = discord.Embed(title = f'Current Rankings', url='', description = '', color = self.emb_color)
+        embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
 
@@ -655,7 +668,7 @@ class FantasyQuery(commands.Cog):
 
         # load names 
         players_dict_list = utility.load_members()
-        embed = discord.Embed(title = f'Current Rankings', url='', description = '', color = self.emb_color)
+        embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
 
@@ -681,7 +694,7 @@ class FantasyQuery(commands.Cog):
 
         # load names 
         players_dict_list = utility.load_members()
-        embed = discord.Embed(title = f'Current Rankings', url='', description = '', color = self.emb_color)
+        embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
 
@@ -829,13 +842,13 @@ class FantasyQuery(commands.Cog):
         # highest scoring team
         highest_scoring_team_decode = f"{highest_scoring_team.decode('utf-8')}"
         highest_formated = f"{highest_scoring_team_decode:<30} {highest_scoring_team_pts:>5.2f}"
-        embed.add_field(name = f"Highest Scoring Team", value = utility.to_block(highest_formated), inline = False)  
+        embed.add_field(name = "Highest Scoring Team", value = utility.to_block(highest_formated), inline = False)  
         embed.add_field(name = '\u200b', value = '\u200b', inline= False)   
 
         # lowest scoring team
         lowest_scoring_team_decode = lowest_scoring_team.decode('utf-8')
         lowest_formated = f"{lowest_scoring_team_decode:<30} {lowest_scoring_team_pts:>5.2f}"
-        embed.add_field(name = f"Lowest Scoring Team", value = utility.to_block(lowest_formated), inline = False)
+        embed.add_field(name = "Lowest Scoring Team", value = utility.to_block(lowest_formated), inline = False)
         embed.add_field(name = '\u200b', value = '\u200b', inline= False)
 
         # largest margin victory
@@ -843,7 +856,7 @@ class FantasyQuery(commands.Cog):
         highest_margin_winning_formated = f"{highest_margin_winning_name_decode:<30} {highest_margin_winner_pts:>5.2f}"
         highest_margin_losing_name_decode = f"{highest_margin_losing_name.decode('utf-8')}: "
         highest_margin_losing_formated = f"{highest_margin_losing_name_decode:<30} {highest_margin_loser_pts:>5.2f}"
-        embed.add_field(name = f"Largest Margin of Victory", 
+        embed.add_field(name = "Largest Margin of Victory", 
                         value = utility.to_block(f"{highest_margin_winning_formated}{newln}{highest_margin_losing_formated} "), 
                         inline = True)
         embed.add_field(name = '\u200b', value = utility.to_green_text(f"{highest_margin_pts:.2f}"), inline= True)
@@ -854,7 +867,7 @@ class FantasyQuery(commands.Cog):
         lowest_margin_winning_formated = f"{lowest_margin_winning_name_decode:<30} {lowest_margin_winner_pts:>5.2f}"
         lowest_margin_losing_name_decode = f"{lowest_margin_losing_name.decode('utf-8')}:"
         lowest_margin_losing_formated = f"{lowest_margin_losing_name_decode:<30} {lowest_margin_loser_pts:>5.2f}"
-        embed.add_field(name = f"Smallest Margin of Victory", 
+        embed.add_field(name = "Smallest Margin of Victory", 
                         value = utility.to_block(f"{lowest_margin_winning_formated}{newln}{lowest_margin_losing_formated}"), 
                         inline = True)
         embed.add_field(name = '\u200b', value = utility.to_green_text(f"{lowest_margin_pts:.2f}"), inline= True)

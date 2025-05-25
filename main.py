@@ -3,6 +3,8 @@ from discord.ext import  commands
 
 from pathlib import Path
 
+from yfpy.models import League
+
 import os
 from dotenv import load_dotenv
 
@@ -10,7 +12,6 @@ import signal
 import asyncio
 import aiohttp 
 
-import utility
 
 current_dir = Path(__file__).parent
 
@@ -30,6 +31,8 @@ token = os.getenv('DISCORD_TOKEN')
 guild_id = int(os.getenv('GUILD_ID'))
 guild = discord.Object(id=guild_id)
 app_id = int(os.getenv('APP_ID'))
+
+print(type(guild))
 
 # Set up the bot with all intents
 intents = discord.Intents.default()
@@ -51,6 +54,9 @@ class BotState:
         self.news_channel_id_lock = asyncio.Lock()
         self.slaps_channel_id = None
         self.slaps_channel_id_lock = asyncio.Lock()
+        self.transactions_channel_id = None
+        self.transactions_channel_id_lock = asyncio.Lock()
+        self.league: League = None
 
 
 bot.state = BotState(guild_id=guild_id, guild=guild)
@@ -100,7 +106,7 @@ async def sync(ctx:commands.Context)->None:
     try:
         commands = await ctx.bot.tree.sync(guild=ctx.guild)
         print(f"[Main_Setup] - {len(commands)} Commands synced to guild: {ctx.guild.id}")
-        await ctx.send(f"Synced the tree.")
+        await ctx.send("Synced the tree.")
     except discord.HTTPException as e:
         print(f"[Main_Setup] - HTTPException: Failed to sync commands for guild {ctx.guild.id} due to an HTTP error: {e}")
     except discord.CommandSyncFailure as e:
@@ -144,7 +150,7 @@ async def shutdown():
     try:
         await bot.close()
     except Exception as e:
-        print ('[Main_Setup] - Error during shutdown: {e}')
+        print (f'[Main_Setup] - Error during shutdown: {e}')
 
 
 def handle_exit(signal_received, frame):

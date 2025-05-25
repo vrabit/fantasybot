@@ -2,22 +2,18 @@ import discord
 from discord.ext import tasks, commands
 from discord import app_commands
 
-
 from pathlib import Path
 
 import requests
-import utility
 import asyncio
 import os
 
 from collections import deque
 from difflib import get_close_matches
 
-import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-from pathlib import Path
 from datetime import datetime, timedelta
 
 
@@ -168,7 +164,7 @@ class TradeValue(commands.Cog):
             # Plot for "Sends" on ax1
             for i in range(len(sends_values_list)):
                 left_value = sum(sends_values_list[:i])
-                bar1 = ax1.barh('Sends', sends_values_list[i], left=np.sum(sends_values_list[:i]), color=colors[i % len(colors)])
+                ax1.barh('Sends', sends_values_list[i], left=np.sum(sends_values_list[:i]), color=colors[i % len(colors)])
                 ax1.text(left_value + sends_values_list[i] / 2, 
                          'Sends', 
                          f"{sends_names[i].replace(' ', newln)}{newln}{sends_values_list[i]}", 
@@ -190,7 +186,7 @@ class TradeValue(commands.Cog):
             # Plot for "Receives" on ax2
             for i in range(len(receives_values_list)):
                 left_value = sum(receives_values_list[:i])
-                bar2 = ax2.barh('Receive', receives_values_list[i], left=np.sum(receives_values_list[:i]), color=colors[i % len(colors)])
+                ax2.barh('Receive', receives_values_list[i], left=np.sum(receives_values_list[:i]), color=colors[i % len(colors)])
                 ax2.text(left_value + receives_values_list[i] / 2, 
                          'Receive', 
                          f"{receives_names[i].replace(' ', newln)}{newln}{receives_values_list[i]}", 
@@ -239,7 +235,7 @@ class TradeValue(commands.Cog):
         async with self.value_map_lock:
             closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
         if len(closest_key) == 0:
-            await interaction.followup.send(f"Failed to match player")
+            await interaction.followup.send("Failed to match player")
         else:
             await self.add_sends(closest_key[0], str(interaction.user.id))
             message = await interaction.followup.send(f"Added {closest_key[0]} to send")
@@ -256,7 +252,7 @@ class TradeValue(commands.Cog):
         async with self.value_map_lock:
             closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
         if len(closest_key) == 0:
-            await interaction.followup.send(f"Failed to match player")
+            await interaction.followup.send("Failed to match player")
         else:
             await self.add_receives(closest_key[0], str(interaction.user.id))
             message = await interaction.followup.send(f"Added {closest_key[0]} to receive")
@@ -281,7 +277,7 @@ class TradeValue(commands.Cog):
                     embed = discord.Embed(title = "",description = "",color = self.emb_color)
                     embed.set_image(url=f"attachment://{filename}")
 
-                    message = await interaction.followup.send(embed = embed, file = file)  
+                    await interaction.followup.send(embed = embed, file = file)  
 
                 #delete after upload 
                 await asyncio.sleep(1)
@@ -297,7 +293,7 @@ class TradeValue(commands.Cog):
     async def clear_trade(self,interaction:discord.Interaction):
         await interaction.response.defer()
         await self.clear_trades(str(interaction.user.id))
-        message = await interaction.followup.send(f"Trade Cleared")      
+        await interaction.followup.send("Trade Cleared")      
 
 
     ###################################################
@@ -307,7 +303,7 @@ class TradeValue(commands.Cog):
     @tasks.loop(minutes=1440)
     async def trade_value(self):
         current_date = datetime.today() 
-        if self.date == None or self.date == current_date - timedelta(days = 1):
+        if self.date is None or self.date == current_date - timedelta(days = 1):
             print('[TradeValue] - Updating Trade Values')
             async with self.player_values_lock:
                 self.player_values = self.request_values()

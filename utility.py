@@ -15,6 +15,7 @@ EMPTY = '\u001b'
 private_lock = asyncio.Lock()
 member_lock = asyncio.Lock()
 week_dates_lock = asyncio.Lock()
+transaction_lock = asyncio.Lock()
 
 ###################################################
 # load and store private.json file
@@ -184,6 +185,44 @@ def create_stat_file(categories):
         entry[str(categories.stats[i].stat_id)] = categories.stats[i].name
 
     return entry
+
+
+###################################################
+# Manage Transactions        
+###################################################
+
+async def store_dict(transactions:dict, filename:str) -> None:
+    """
+    Store transactions to the transactions.json file.
+        Args:
+            transactions (dict): Dictionary of transactions to store
+        Returns:
+            None
+    """
+    transaction_file = current_dir / 'persistent_data' / filename
+
+    async with transaction_lock:
+        with open(transaction_file, 'w') as file:
+            json.dump(transactions, file, indent = 4)
+
+
+async def load_dict(filename:str) -> dict:
+    """
+    Load transactions from the transactions.json file.
+        Returns:
+            dict: Dictionary of transactions
+    """
+    transaction_file = current_dir / 'persistent_data' / filename
+
+    async with transaction_lock:
+        if os.path.exists(transaction_file):
+            with open(transaction_file,'r') as file:
+                transactions = json.load(file)
+        else:
+            return {}
+
+    return transactions
+
 
 ###################################################
 # Setup persistent week dates          

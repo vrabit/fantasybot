@@ -71,7 +71,7 @@ class SlapChallenge(commands.Cog):
         except discord.Forbidden:
             print(f'[SlapChallenge] - Do not have the necessary permissions to assign {role_name} role')
         except discord.HTTPException as e:
-            print(f'[SlapChallenge] - Failed to assign {role_name} role')
+            print(f'[SlapChallenge] - Failed to assign {role_name} role. Error: {e}')
 
 
     async def remove_role_members(self,role_name:str):
@@ -112,7 +112,6 @@ class SlapChallenge(commands.Cog):
 
         if local_id is None:
             print('[SlapChallenge] - Channel not set.')
-            await channel.send("Channel not set. Please use /slap to set the channel.")
             return
 
         # gather challenger info
@@ -152,9 +151,9 @@ class SlapChallenge(commands.Cog):
 
             embed = discord.Embed(title = '', url='', description = '', color = self.emb_color)
             if(challenger_stats['team_points'].total > challengee_stats['team_points'].total):
-                embed.add_field(name = f'Winner', value=f'', inline = True)
-                embed.add_field(name = f'', value=f'', inline = True)
-                embed.add_field(name = f'Loser', value=f'', inline = True)
+                embed.add_field(name = 'Winner', value='', inline = True)
+                embed.add_field(name = '', value='', inline = True)
+                embed.add_field(name = 'Loser', value='', inline = True)
                 embed.set_image(url = self.left_winner)
 
                 # assign role to loser
@@ -162,9 +161,9 @@ class SlapChallenge(commands.Cog):
                 await self.assign_role(challengee_member, chump_role, channel)
 
             elif (challenger_stats['team_points'].total < challengee_stats['team_points'].total):
-                embed.add_field(name = f'Loser', value=f'', inline = True)
-                embed.add_field(name = f'', value=f'', inline = True)
-                embed.add_field(name = f'Winner', value=f'', inline = True)
+                embed.add_field(name = 'Loser', value='', inline = True)
+                embed.add_field(name = '', value='', inline = True)
+                embed.add_field(name = 'Winner', value='', inline = True)
                 embed.set_image(url = self.right_winner)
 
                 # assign role to loser
@@ -172,9 +171,9 @@ class SlapChallenge(commands.Cog):
                 await self.assign_role(challenger_member, chump_role, channel)
 
             else:
-                embed.add_field(name = f'Loser', value=f'', inline = True)
-                embed.add_field(name = f'', value=f'', inline = True)
-                embed.add_field(name = f'Loser', value=f'', inline = True)
+                embed.add_field(name = 'Loser', value='', inline = True)
+                embed.add_field(name = '', value='', inline = True)
+                embed.add_field(name = 'Loser', value='', inline = True)
                 embed.set_image(url=self.tie_gif)
 
                 # assign role to losers
@@ -329,25 +328,25 @@ class SlapChallenge(commands.Cog):
             except discord.Forbidden:
                 print(f'[SlapChallenge] - Do not have the necessary permissions to assign {role_name} role')
             except discord.HTTPException as e:
-                print(f'[SlapChallenge] - Failed to assign {role_name} role')
+                print(f'[SlapChallenge] - Failed to assign {role_name} role. Error: {e}')
 
 
         async def on_timeout(self):
             for child in self.children:
-                if type(child) == discord.ui.Button:
+                if isinstance(child,discord.ui.Button):
                     child.disabled = True
 
             if self.message:
-                embed = discord.Embed(title = 'Slap', description = f'Challenge Expired',color = self.emb_color)
+                embed = discord.Embed(title = 'Slap', description = 'Challenge Expired',color = self.emb_color)
                 await self.message.edit(embed = embed,view = self)
 
         async def cleanup(self):
             for child in self.children:
-                if type(child) == discord.ui.Button:
+                if isinstance(child, discord.ui.Button):
                     child.disabled = True
 
             if self.message:
-                embed = discord.Embed(title = 'Slap', description = f'Challenge Expired',color = self.emb_color)
+                embed = discord.Embed(title = 'Slap', description = 'Challenge Expired',color = self.emb_color)
                 await self.message.edit(embed = embed,view = self)
 
         async def shutdown(self):
@@ -365,7 +364,7 @@ class SlapChallenge(commands.Cog):
 
             # disable all other buttons
             for child in self.children:
-                if type(child) == discord.ui.Button:
+                if isinstance(child, discord.ui.Button):
                     child.disabled = True
             
             utility.add_challenges(self.challenger_teamid,self.challengee_teamid)
@@ -385,7 +384,7 @@ class SlapChallenge(commands.Cog):
             button.disabled = True
 
             for child in self.children:
-                if type(child) == discord.ui.Button:
+                if isinstance(child,discord.ui.Button):
                     child.disabled = True
             embed = discord.Embed(title='Slap', description = f'{utility.id_to_mention(self.challengee)} has denied {utility.id_to_mention(self.challenger)}\'s challenge.',color = self.emb_color)
             embed.set_image(url = self.charlie_stare)
@@ -436,7 +435,7 @@ class SlapChallenge(commands.Cog):
         today = datetime.date.today()
 
         if today == start_date:
-            embed = discord.Embed(title='Slap someone tomorrow.', description = f'Challenges start Wednesday.',color = self.emb_color)
+            embed = discord.Embed(title='Slap someone tomorrow.', description = 'Challenges start Wednesday.',color = self.emb_color)
             embed.set_image(url = self.timeout_gif)
 
             await interaction.followup.send(embed = embed,ephemeral=False)
