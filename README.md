@@ -168,6 +168,7 @@ A Discord bot used for my Yahoo Fantasy Football leagues.
     DISCORD_TOKEN=<YOUR_DISCORD_BOT_TOKEN>
     APP_ID=<YOUR_DISCORD_APP_ID>
     GUILD_ID=<YOUR_DISCORD_SERVER_ID>
+    MANAGER_ROLE=<NUMERIC_ROLE_ID>
 
      ```
 
