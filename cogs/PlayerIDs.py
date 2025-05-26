@@ -86,7 +86,7 @@ class PlayerIDs(commands.Cog):
 
 
     @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
-    @app_commands.command(name="collect_all_info", description= "Request and store ALL NFL player Info in batches")
+    @app_commands.command(name="store_player_info", description= "Request and store ALL NFL player Info in batches")
     async def collect_IDs(self, interaction: discord.Interaction):
         await interaction.response.send_message('Collection Triggered')
         print(f'Collection Triggered: Will be stored withinin {self.filepath}')
