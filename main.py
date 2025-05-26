@@ -57,6 +57,7 @@ class BotState:
         self.transactions_channel_id = None
         self.transactions_channel_id_lock = asyncio.Lock()
         self.league: League = None
+        self.players:dict = None
 
 
 bot.state = BotState(guild_id=guild_id, guild=guild)

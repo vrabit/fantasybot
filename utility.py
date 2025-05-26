@@ -12,10 +12,16 @@ current_dir = Path(__file__).parent
 
 
 EMPTY = '\u001b'
+
+# Json file locks
 private_lock = asyncio.Lock()
 member_lock = asyncio.Lock()
 week_dates_lock = asyncio.Lock()
 transaction_lock = asyncio.Lock()
+players_lock = asyncio.Lock()
+
+# CSV file locks
+players_csv_lock = asyncio.Lock()
 
 ###################################################
 # load and store private.json file
@@ -125,7 +131,7 @@ def load_players() -> dict:
             dict: Dictionary of yahoo names and their corresponding IDs
     """
     new_dict = {}
-    with open(current_dir / 'yfpyauth'/ 'player_ids.csv','r') as file:
+    with open(current_dir / 'persistent_data' / 'player_ids.csv','r') as file:
         csv_reader = csv.DictReader(file)
 
         for row in csv_reader:
@@ -135,6 +141,36 @@ def load_players() -> dict:
             new_dict[key] = value
 
     return new_dict
+
+async def load_players_async() -> dict:
+    """
+    Load player IDs from the player_ids.csv file.
+        Returns:
+            dict: Dictionary of yahoo names and their corresponding IDs
+    """
+    new_dict = {}
+    with open(current_dir / 'persistent_data' / 'player_ids.csv','r') as file:
+        csv_reader = csv.DictReader(file)
+
+        for row in csv_reader:
+            key = row['yahoo_name']
+            value = row['yahoo_id']
+
+            new_dict[key] = value
+
+    return new_dict
+
+
+async def store_players(players_dict:dict) -> None:
+    filename= current_dir / 'persistent_data' / 'player_ids.csv'
+    async with players_csv_lock:
+        with open(filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+
+            writer.writerow(['yahoo_id', 'yahoo_name'])
+
+            for player_id, name in players_dict.items():
+                writer.writerow([player_id,name])
 
 
 ###################################################
@@ -186,14 +222,50 @@ def create_stat_file(categories):
 
     return entry
 
+###################################################
+# Manage player_ids        
+###################################################
+
+async def store_player_ids(player_ids:dict, filename:str):
+    """
+        Store player_ids to the .json file.
+        Args:
+            players (dict): Dictionary of player_ids and player_names
+        Returns:
+            None
+    """
+    players_file = current_dir / 'persistent_data' / filename
+
+    async with players_lock:
+        with open(players_file, 'w') as file:
+            json.dump(player_ids, file, indent = 4)
+
+
+async def load_player_ids(filename:str) -> dict:
+    """
+    Load players from the .json file.
+        Returns:
+            dict: Dictionary of player_ids and names
+    """
+    player_file = current_dir / 'persistent_data' / filename
+
+    async with players_lock:
+        if os.path.exists(player_file):
+            with open(player_file, 'r') as file:
+                players = json.load(file)
+        else:
+            return {}
+
+    return players
+
 
 ###################################################
 # Manage Transactions        
 ###################################################
 
-async def store_dict(transactions:dict, filename:str) -> None:
+async def store_transactions(transactions:dict, filename:str) -> None:
     """
-    Store transactions to the transactions.json file.
+    Store transactions to the .json file.
         Args:
             transactions (dict): Dictionary of transactions to store
         Returns:
@@ -206,9 +278,9 @@ async def store_dict(transactions:dict, filename:str) -> None:
             json.dump(transactions, file, indent = 4)
 
 
-async def load_dict(filename:str) -> dict:
+async def load_transactions(filename:str) -> dict:
     """
-    Load transactions from the transactions.json file.
+    Load transactions from the .json file.
         Returns:
             dict: Dictionary of transactions
     """

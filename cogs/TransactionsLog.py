@@ -155,7 +155,7 @@ class TransactionsLog(commands.Cog):
 
     async def update_transactions(self):
         """Get recent transactions."""
-        start = 1
+        start = 0
         found = False
         while found is False:
             async with self.bot.state.fantasy_query_lock:
@@ -182,7 +182,7 @@ class TransactionsLog(commands.Cog):
             await asyncio.sleep(10)
             
         # Update transactions .json file
-        await utility.store_dict(self.transactions, self.filename)
+        await utility.store_transactions(self.transactions, self.filename)
 
 
     async def unpack_transaction(self, transaction_id:str):
@@ -208,7 +208,6 @@ class TransactionsLog(commands.Cog):
                 print('[TransactionsLog] - No Transactions channel ID found within private_data.json')
                 return False
             else:
-                print(f'[TransactionsLog] - Transactions channel ID set to {self.bot.state.transactions_channel_id}')
                 return True
 
 
@@ -220,13 +219,12 @@ class TransactionsLog(commands.Cog):
         if not channel_set:
             print('[TransactionsLog][Check_Transactions] - Transactions channel not set')
             return
-        print('[TransactionsLog] - Checking Transactions')
         
         # Load transactions from file
-        self.transactions = await utility.load_dict(self.filename)
+        self.transactions = await utility.load_transactions(self.filename)
 
         # testing temporary
-        await self.post_transaction('347')
+        #await self.post_transaction('347')
 
 
         # Get check_if_new_entry

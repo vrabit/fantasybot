@@ -36,13 +36,15 @@ class fantasyQuery:
         return self.league.season
 
 
-    def __init__(self, yahoo_query):
+    def __init__(self, yahoo_query,players_dict):
         self.yahoo_query = yahoo_query  
-        self.player_dict = utility.load_players()
+        self.player_dict = players_dict
         self.stat_dict = utility.create_stat_file(self.get_stat_categories())
         self.league_key = self.yahoo_query.get_league_key()
         self.league = self.get_league()['league']
 
+    def update_player_dict(self, player_dict):
+        self.player_dict = player_dict
 
     def get_player_id(self, name):
         return self.player_dict.get(name)
@@ -81,11 +83,16 @@ class fantasyQuery:
         return temp
 
 
-    #find and replace what i use this for
     def get_league(self):
         league_url = self.LEAGUE_URL
         return self.yahoo_query.query(league_url,[],data_type_class=None, sort_function=None)
         
+
+    def get_players(self, start=0, count=25):
+        league_url = self.LEAGUE_URL
+        url=f'{league_url}/players?count={count}&start={start}'
+        return self.yahoo_query.query(url,[],data_type_class=None, sort_function=None)
+
 
     def get_league_info(self):
         return self.yahoo_query.get_league_info()

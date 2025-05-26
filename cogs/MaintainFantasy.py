@@ -6,7 +6,7 @@ from yfpy.query import YahooFantasySportsQuery
 from fantasy import fantasyQuery
 
 import os
-
+import utility
 
 class MaintainFantasy(commands.Cog):
     def __init__(self,bot):
@@ -46,13 +46,14 @@ class MaintainFantasy(commands.Cog):
                 await self.bot.close()
                 return
             
+            players_dict = await utility.load_players_async()
+            
             # Set bot state to the new fantasy query object
-            self.bot.state.fantasy_query = fantasyQuery(yahoo_query)
+            self.bot.state.fantasy_query = fantasyQuery(yahoo_query,players_dict)
 
             # Set current League
             self.bot.state.league = self.bot.state.fantasy_query.get_league()['league']
 
-            self.bot.state.fantasy_query.check_recent_transactions()
 
         print('[MaintainFantasy] - .. Done')
 
@@ -71,7 +72,7 @@ class MaintainFantasy(commands.Cog):
     ###################################################
 
     def cog_unload(self):
-        #self.refresh_fantasy.cancel()
+        self.refresh_fantasy.cancel()
         print('[MaintainFantasy] - Cog Unload')
 
 
