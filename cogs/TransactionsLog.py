@@ -3,16 +3,13 @@ from discord.ext import  tasks,commands
 
 from pathlib import Path
 
-from yfpy.query import YahooFantasySportsQuery
 from yfpy import utils
 from yfpy.models import League, Transaction
-from fantasy import fantasyQuery
 
 import utility
 import asyncio
 
 import json
-import os
 
 
 class TransactionsLog(commands.Cog):

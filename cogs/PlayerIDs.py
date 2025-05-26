@@ -1,11 +1,9 @@
 import discord
 from discord import app_commands
-from discord.ext import  tasks,commands
+from discord.ext import  commands
 
 from pathlib import Path
 
-from yfpy.query import YahooFantasySportsQuery
-from fantasy import fantasyQuery
 from yfpy.models import League, Player
 
 import asyncio
@@ -61,7 +59,7 @@ class PlayerIDs(commands.Cog):
             start += 25
 
             # pace requests to avoid rate limit
-            await asyncio.sleep(10)
+            await asyncio.sleep(2)
             
 
     ############################################################################
