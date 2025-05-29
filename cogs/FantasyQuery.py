@@ -8,7 +8,7 @@ import asyncio
 from pathlib import Path
 
 from difflib import get_close_matches
-from yfpy.models import Scoreboard
+from yfpy.models import Scoreboard, League
 
 import datetime
 
@@ -20,6 +20,10 @@ class FantasyQuery(commands.Cog):
         self.parent_dir = self.current_dir.parent
 
         self.store_data.start()
+
+        self.player_ids_filename = 'player_ids.csv'
+        self.members_filename = 'members.json'
+        self._private_filename = 'private.json'
 
         # bot embed color
         self.emb_color = self.bot.state.emb_color
@@ -137,6 +141,13 @@ class FantasyQuery(commands.Cog):
         await interaction.response.send_message(embed = embed,ephemeral=False)
 
 
+    async def bind_discord(self, members:dict, draft_id:int, discord_id:int) -> dict:
+        for member in members:
+            if member.get('id') == str(draft_id):
+                member.update({'discord_id':str(discord_id)})
+                break
+        return members
+
     @app_commands.command(name="bind", description= "Bind Team ID to current Discord ID")
     @app_commands.describe(id="Yahoo team ID")
     async def bind(self,interaction:discord.Interaction, id: int):
@@ -145,10 +156,14 @@ class FantasyQuery(commands.Cog):
         value = utility.arg_to_int(id)
 
         if value is not None and (value >= 1 or value <= 10):
-            await utility.bind_discord_async(value,discord_id)
+            members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+            updated_members = await self.bind_discord(members, value, discord_id)
+            await self.bot.state.persistent_manager.write_json(filename=self.members_filename, data=updated_members)
+
             await interaction.response.send_message(f'Team ID: {value} bound to Discord ID: {utility.id_to_mention(discord_id)}',ephemeral=True)
         else:
-            await interaction.response.send_message('Integer between 1 - 10',ephemeral=True)
+            number_of_teams = self.bot.state.league.num_teams
+            await interaction.response.send_message(f'Integer between 1 - {number_of_teams}',ephemeral=True)
 
 
     @app_commands.command(name='bind_other', description= "Bind Team ID to specified Discord ID")
@@ -156,10 +171,14 @@ class FantasyQuery(commands.Cog):
     async def bind_other(self, interaction:discord.Interaction, discord_user:discord.User, id:int):
 
         if id is not None and (id >= 1 or id <= 10):
-            await utility.bind_discord_async(id,discord_user.id)
+            members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+            updated_members = await self.bind_discord(members, id, discord_user.id)
+            await self.bot.state.persistent_manager.write_json(filename=self.members_filename, data=updated_members)
+
             await interaction.response.send_message(f'Team ID: {id} bound to Discord ID: {utility.id_to_mention(discord_user.id)}',ephemeral=True)
         else:
-            await interaction.response.send_message('Integer between 1 - 10',ephemeral=True)
+            number_of_teams = self.bot.state.league.num_teams
+            await interaction.response.send_message(f'Integer between 1 - {number_of_teams}',ephemeral=True)
 
 
     @app_commands.command(name="set_news",description="Set current channel to News channel")
@@ -167,10 +186,16 @@ class FantasyQuery(commands.Cog):
         async with self.bot.state.news_channel_id_lock:
             self.bot.state.news_channel_id = interaction.channel_id
 
-        # save channel id to persistent data
-        data = await utility.get_private_discord_data_async()
-        data.update({'news_channel_id': interaction.channel_id})
-        await utility.set_private_discord_data_async(data)
+        # load persistent data
+        exists = await self.bot.state.discord_auth_manager.path_exists(self._private_filename)
+        if exists:
+            data = await self.bot.state.discord_auth_manager.load_json(self._private_filename)
+        else:
+            data = {'news_channel_id': None,'channel_id': None, 'transactions_channel_id': None}
+
+        # update persistent data
+        data.update({'news_channel_id': str(interaction.channel_id)})
+        await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
 
         await interaction.response.send_message('News Channel Set.')
 
@@ -180,10 +205,16 @@ class FantasyQuery(commands.Cog):
         async with self.bot.state.slaps_channel_id_lock:
             self.bot.state.slap_channel_id = interaction.channel_id
 
-        # save channel id to persistent data
-        data = await utility.get_private_discord_data_async()
-        data.update({'channel_id': interaction.channel_id})
-        await utility.set_private_discord_data_async(data)
+        # load persistent data
+        exists = await self.bot.state.discord_auth_manager.path_exists(self._private_filename)
+        if exists:
+            data = await self.bot.state.discord_auth_manager.load_json(self._private_filename)
+        else:
+            data = {'news_channel_id': None,'channel_id': None, 'transactions_channel_id': None}
+
+        # update persistent data
+        data.update({'channel_id': str(interaction.channel_id)})
+        await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
 
         await interaction.response.send_message('Slap Channel Set.')
 
@@ -193,10 +224,16 @@ class FantasyQuery(commands.Cog):
         async with self.bot.state.transactions_channel_id_lock:
             self.bot.state.transactions_channel_id = interaction.channel_id
 
-        # save channel id to persistent data
-        data = await utility.get_private_discord_data_async()
-        data.update({'transactions_channel_id': interaction.channel_id})
-        await utility.set_private_discord_data_async(data)
+        # load persistent data
+        exists = await self.bot.state.discord_auth_manager.path_exists(self._private_filename)
+        if exists:
+            data = await self.bot.state.discord_auth_manager.load_json(self._private_filename)
+        else:
+            data = {'news_channel_id': None,'channel_id': None, 'transactions_channel_id': None}
+
+        # update persistent data
+        data.update({'transactions_channel_id': str(interaction.channel_id)})
+        await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
 
         await interaction.response.send_message('Transactions Channel Set.')
 
@@ -205,6 +242,16 @@ class FantasyQuery(commands.Cog):
     @app_commands.describe(week="week")
     async def week_chump(self,interaction:discord.Interaction,week:int):
         await interaction.response.defer()
+
+        async with self.bot.state.league_lock:
+            league:League = self.bot.state.league
+        start_week = league.start_week
+        end_week = league.end_week
+
+        if week > end_week or week < start_week:
+            await interaction.followup.send(f'Invalid Input: start_week={start_week} - end_week={end_week}',ephemeral=True)
+            return
+
         async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
@@ -235,13 +282,16 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use lowest_id to mention discord user 
-        discord_user = await utility.teamid_to_discord(lowest_id)
+        discord_user = await utility.teamid_to_discord(lowest_id,self.bot.state.persistent_manager)
 
         # check if user exists
         if discord_user is None:
             await interaction.followup.send(utility.to_block(f"{lowest_name.decode('utf-8')} Total Pts: {current_lowest}"),ephemeral=False)
         else:
             member = interaction.guild.get_member(int(discord_user))
+            if member is None:
+                member = await interaction.guild.fetch_member(int(discord_user))
+
             if discord_user is not None:
                 embed.set_author(name = member.display_name, url=lowest_url, icon_url = member.display_avatar.url)
 
@@ -283,6 +333,7 @@ class FantasyQuery(commands.Cog):
     @app_commands.command(name="chump",description="Loser of the current week")
     async def chump(self,interaction:discord.Interaction):
         await interaction.response.defer()
+
         async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
@@ -315,13 +366,16 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use lowest_id to mention discord user 
-        discord_user = await utility.teamid_to_discord(lowest_id)
+        discord_user = await utility.teamid_to_discord(lowest_id,self.bot.state.persistent_manager)
 
         # check if user exists
         if discord_user is None:
             await interaction.followup.send(utility.to_block(f"{lowest_name.decode('utf-8')} Total Pts: {current_lowest}"),ephemeral=False)
         else:
             member = interaction.guild.get_member(int(discord_user))
+            if member is None:
+                member = await interaction.guild.fetch_member(int(discord_user))
+
             if discord_user is not None:
                 embed.set_author(name = member.display_name, url=lowest_url, icon_url = member.display_avatar.url)
 
@@ -364,6 +418,16 @@ class FantasyQuery(commands.Cog):
     @app_commands.describe(week="week")
     async def week_mvp(self,interaction:discord.Interaction,week:int):
         await interaction.response.defer()
+
+        async with self.bot.state.league_lock:
+            league:League = self.bot.state.league
+        start_week = league.start_week
+        end_week = league.end_week
+
+        if week > end_week or week < start_week:
+            await interaction.followup.send(f'Invalid Input: start_week={start_week} - end_week={end_week}')
+            return
+
         async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
@@ -395,14 +459,15 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use highest_id to mention discord user 
-        discord_user = await utility.teamid_to_discord(highest_id)
+        discord_user = await utility.teamid_to_discord(highest_id,self.bot.state.persistent_manager)
 
         # check if user exists
         if discord_user is None:
             await interaction.followup.send(utility.to_block(f"{highest_name.decode('utf-8')} Total Pts: {current_highest}"),ephemeral=False)
         else:
             member = interaction.guild.get_member(int(discord_user))
-
+            if member is None:
+                member = await interaction.guild.fetch_member(int(discord_user))
 
             if discord_user is not None:
                 embed.set_author(name = member.display_name, url=highest_url, icon_url = member.display_avatar.url)
@@ -444,6 +509,7 @@ class FantasyQuery(commands.Cog):
     @app_commands.command(name="mvp",description="MVP of the current week")
     async def mvp(self,interaction:discord.Interaction):
         await interaction.response.defer()
+
         async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
@@ -477,14 +543,15 @@ class FantasyQuery(commands.Cog):
         embed.set_thumbnail(url = logo_url)
 
         # use highest_id to mention discord user 
-        discord_user = await utility.teamid_to_discord(highest_id)
+        discord_user = await utility.teamid_to_discord(highest_id,self.bot.state.persistent_manager)
 
         # check if user exists
         if discord_user is None:
             await interaction.followup.send(utility.to_block(f"{highest_name.decode('utf-8')} Total Pts: {current_highest}"),ephemeral=False)
         else:
             member = interaction.guild.get_member(int(discord_user))
-
+            if member is None:
+                member = await interaction.guild.fetch_member(int(discord_user))
 
             if discord_user is not None:
                 embed.set_author(name = member.display_name, url=highest_url, icon_url = member.display_avatar.url)
@@ -581,7 +648,8 @@ class FantasyQuery(commands.Cog):
     @app_commands.describe(player_name="name")
     async def player_stats(self,interaction:discord.Interaction,player_name:str):
         await interaction.response.defer()
-        player_list = utility.load_players()
+        player_list = await self.bot.state.persistent_manager.load_simple_csv(filename=self.player_ids_filename)
+        #await utility.load_players_async()
         closest_keys = get_close_matches(player_name,player_list,n=1,cutoff=0.6)
         
         if len(closest_keys) == 0:
@@ -593,8 +661,9 @@ class FantasyQuery(commands.Cog):
         else:
             name = closest_keys[0]
 
+        player_id = player_list.get(name)
         async with self.bot.state.fantasy_query_lock:
-            player_id = self.bot.state.fantasy_query.get_player_id(name)
+            #player_id = self.bot.state.fantasy_query.get_player_id(name)
 
             # weekly stats
             player = self.bot.state.fantasy_query.get_player_stats(player_id)
@@ -636,12 +705,13 @@ class FantasyQuery(commands.Cog):
     async def leaderboard(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            standings = self.bot.state.fantasy_query.get_all_standings(10)
+            standings = self.bot.state.fantasy_query.get_all_standings(self.bot.state.league.num_teams)
 
         sorted_standings = sorted(standings, key = lambda tup: int(tup[1].rank))
 
         # load names 
-        players_dict_list = utility.load_members()
+        players_dict_list = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+        #utility.load_members()
         embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
@@ -662,12 +732,13 @@ class FantasyQuery(commands.Cog):
     async def most_points(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            standings = self.bot.state.fantasy_query.get_all_standings(10)
+            standings = self.bot.state.fantasy_query.get_all_standings(self.bot.state.league.num_teams)
 
         sorted_standings = sorted(standings, key = lambda tup: int(tup[1].points_for), reverse = True)
 
         # load names 
-        players_dict_list = utility.load_members()
+        players_dict_list = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+        #utility.load_members()
         embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
@@ -688,12 +759,13 @@ class FantasyQuery(commands.Cog):
     async def points_against(self,interaction:discord.Interaction):
         await interaction.response.defer()
         async with self.bot.state.fantasy_query_lock:
-            standings = self.bot.state.fantasy_query.get_all_standings(10)
+            standings = self.bot.state.fantasy_query.get_all_standings(self.bot.state.league.num_teams)
 
         sorted_standings = sorted(standings, key = lambda tup: int(tup[1].points_against), reverse = True)
 
         # load names 
-        players_dict_list = utility.load_members()
+        players_dict_list = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+        #utility.load_members()
         embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
@@ -944,7 +1016,8 @@ class FantasyQuery(commands.Cog):
 
             filename = f"week_{i}_matchup.json"
             serialized_data = await self.serialize_matchups(current_week_obj)
-            await utility.store_matchups(serialized_data,filename)
+            await self.bot.state.recap_manager.write_json(filename=filename, data = serialized_data)
+            #utility.store_matchups(serialized_data,filename)
 
 
     @tasks.loop(minutes=1440)

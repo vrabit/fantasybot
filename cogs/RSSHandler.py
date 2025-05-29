@@ -6,7 +6,7 @@ import asyncio
 import json
 import os
 from collections import deque
-
+from yfpy.models import Team
 import feedparser
 
 import utility
@@ -30,6 +30,9 @@ class RSSHandler(commands.Cog):
 
         self.feed_queue = deque(maxlen=self.MAX_QUEUE)
         self.feed_queue_lock = asyncio.Lock()
+
+        self._members_filename = 'members.json'
+        self._private_filename = 'private.json'
 
         if not self.poll_rss.is_running():
             self.poll_rss.start()
@@ -148,7 +151,8 @@ class RSSHandler(commands.Cog):
 
     async def setup_RSS(self):
         # load private data 
-        data = await utility.get_private_discord_data_async()
+        data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
+        #await utility.get_private_discord_data_async()
 
         raw_data = data.get('news_channel_id')
         if raw_data is None:
@@ -162,14 +166,55 @@ class RSSHandler(commands.Cog):
                 return None
         return int(data.get('news_channel_id'))
 
+    
+    async def compose_memlist(self, team_list:list[Team]) -> list[dict]:
+        members = []
+        try:
+            for team in team_list:
+                entry = {}
+                entry['name'] = utility.ensure_str(team.name)
+                entry['id'] = str(team.team_id)
+                members.append(entry)
+
+        except Exception as e:
+            print(f'[RSSHandler][init_memlist] - Error: {e}')
+            return []
+        
+        return members
+
+
+    async def update_names(self, team_list:list[Team]) -> list[dict]:
+        members_list = await self.bot.state.persistent_manager.load_json(self._members_filename)
+
+        for team in team_list:
+            for member in members_list:
+                if int(team.team_id) == int(member.get('id')):
+                    member.update({'name':utility.ensure_str(team.name)})
+        return members_list
+
+
+    async def update_memlist(self, team_list:list[Team]) -> None:
+        if await self.bot.state.persistent_manager.path_exists(self._members_filename):
+            # update player names in list
+            members_list = await self.update_names(team_list)
+        else:
+            # compose new member list and store it
+            members_list = await self.compose_memlist(team_list)
+
+        await self.bot.state.persistent_manager.write_json(filename=self._members_filename, data=members_list)
+
 
     @commands.Cog.listener()
     async def on_ready(self):
         print('[RSSHandler] - RSS Setup .. ')
 
         async with self.bot.state.fantasy_query_lock:
-            utility.init_memlist(self.bot.state.fantasy_query.get_teams())
-            print('[RSSHandler] - Initialize Member List')
+            team_list:list[Team] =self.bot.state.fantasy_query.get_teams()
+
+        await self.update_memlist(team_list)
+        
+        #utility.init_memlist(team_list)
+        print('[RSSHandler] - Initialize Member List')
 
 
     ###################################################

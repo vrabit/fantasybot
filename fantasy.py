@@ -36,18 +36,20 @@ class fantasyQuery:
         return self.league.season
 
 
-    def __init__(self, yahoo_query,players_dict):
+    def __init__(self, yahoo_query):
         self.yahoo_query = yahoo_query  
-        self.player_dict = players_dict
-        self.stat_dict = utility.create_stat_file(self.get_stat_categories())
+        #self.player_dict = players_dict
+        self.stat_dict = self.create_stat_file(self.get_stat_categories())
         self.league_key = self.yahoo_query.get_league_key()
         self.league = self.get_league()['league']
 
-    def update_player_dict(self, player_dict):
-        self.player_dict = player_dict
 
-    def get_player_id(self, name):
-        return self.player_dict.get(name)
+    def create_stat_file(self,categories):
+        entry = {}
+        for i in range(len(categories.stats)):
+            entry[str(categories.stats[i].stat_id)] = categories.stats[i].name
+
+        return entry
 
 
     # FIX THIS, NEVER CALLED 

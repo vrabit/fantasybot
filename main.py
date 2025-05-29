@@ -12,6 +12,8 @@ import signal
 import asyncio
 import aiohttp 
 
+import file_manager
+
 
 current_dir = Path(__file__).parent
 
@@ -57,7 +59,12 @@ class BotState:
         self.transactions_channel_id = None
         self.transactions_channel_id_lock = asyncio.Lock()
         self.league: League = None
-        self.players:dict = None
+        self.league_lock = asyncio.Lock()
+        
+        # file managers
+        self.persistent_manager = file_manager.PersistentManager()
+        self.recap_manager = file_manager.RecapManager()
+        self.discord_auth_manager = file_manager.DiscordAuthManager()
 
 
 bot.state = BotState(guild_id=guild_id, guild=guild)

@@ -30,6 +30,11 @@ class SlapChallenge(commands.Cog):
         # fantasy league (League)
         self.fantasy_league = None
 
+        self._private_filename = 'private.json'
+        self._week_dates_filename = 'week_dates.json'
+        self._challenges_filename = 'challenges.json'
+        
+
         # Slap 
         self.loser_role_name = 'King Chump'
         self.dave_slap = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTZnZ2p6cnRxcHJucXZ4bGtpcThxd3VscWY0ZTFnMzZ3ZDQ0OXMwcSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VeXiycRe0X4IewK6WY/giphy.gif'
@@ -115,8 +120,8 @@ class SlapChallenge(commands.Cog):
             return
 
         # gather challenger info
-        challenger_name = await utility.teamid_to_name(challenger_key)
-        challenger_discord_id = await utility.teamid_to_discord(challenger_key)
+        challenger_name = await utility.teamid_to_name(challenger_key, self.bot.state.persistent_manager)
+        challenger_discord_id = await utility.teamid_to_discord(challenger_key,self.bot.state.persistent_manager)
         formatted_challenger_discord_id = utility.id_to_mention(challenger_discord_id)
 
         # load challenger stats into array if not already loaded
@@ -136,8 +141,8 @@ class SlapChallenge(commands.Cog):
         while challengee_deque:
             # gather current challenger info
             challengee_team_id = challengee_deque.pop()
-            challengee_name = await utility.teamid_to_name(challengee_team_id)
-            challengee_discord_id = await utility.teamid_to_discord(challengee_team_id)
+            challengee_name = await utility.teamid_to_name(challengee_team_id, self.bot.state.persistent_manager)
+            challengee_discord_id = await utility.teamid_to_discord(challengee_team_id,self.bot.state.persistent_manager)
             formatted_challengee_discord_id = utility.id_to_mention(challengee_discord_id)
 
             # add to array for the future
@@ -204,7 +209,8 @@ class SlapChallenge(commands.Cog):
     @tasks.loop(minutes=1440)
     async def remove_slap_roles(self):
         # load dates list
-        loaded_dates = await utility.load_dates()
+        loaded_dates = await self.bot.state.persistent_manager.load_json(filename=self._week_dates_filename)
+        #utility.load_dates()
 
         # current week
         async with self.bot.state.fantasy_query_lock:
@@ -246,18 +252,15 @@ class SlapChallenge(commands.Cog):
         # wait for fantasy object to be set up
         await asyncio.sleep(30)
 
-        date_file = self.parent_dir / 'persistent_data' / 'week_dates.json'
-
-        # if does not exist, create and store dates list
-        exists = os.path.exists(date_file)
+        exists = await self.bot.state.persistent_manager.path_exists(filename=self._week_dates_filename)
         if not exists:
-            print('[SlapChallenge] - Dates file does not exist. Creating new one.')
             async with self.bot.state.fantasy_query_lock:
                 dates_dict = await self.construct_date_list(self.bot.state.fantasy_query.get_game_weeks_by_game_id())
-                await utility.store_dates(dates_dict)
+            await self.bot.state.persistent_manager.write_json(filename=self._week_dates_filename, data=dates_dict)
 
         # load dates list
-        loaded_dates = await utility.load_dates()
+        loaded_dates = await self.bot.state.persistent_manager.load_json(filename=self._week_dates_filename)
+        #utility.load_dates()
 
         if self.fantasy_league is None:
             async with self.bot.state.fantasy_query_lock:
@@ -286,7 +289,8 @@ class SlapChallenge(commands.Cog):
         # check if yesterday was the end of the week
         if yesterday_date_obj == last_week_end_date_obj:
             # pop all challenges from deque
-            current_challenges = utility.load_challenges()
+            current_challenges = await self.bot.state.persistent_manager.load_json(filename=self._challenges_filename)
+            #utility.load_challenges()
 
             if not current_challenges:
                 print('[SlapChallenge] - No challenges to process')
@@ -295,7 +299,9 @@ class SlapChallenge(commands.Cog):
             # member storage to prevent repeated calls to get_team_stats
             members_storage = [None] * self.fantasy_league.num_teams
             await self.iterate_deque(current_week, current_challenges,members_storage)
-            utility.clear_challenges()
+            
+            await self.bot.state.persistent_manager.write_json(filename=self._challenges_filename,data={})
+            #utility.clear_challenges()
 
 
     class AcceptDenyChallenge(discord.ui.View):
@@ -311,6 +317,76 @@ class SlapChallenge(commands.Cog):
             self.emb_color = discord.Color.from_rgb(225, 198, 153)
             self.charlie_stare = 'https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmlwcTQ4dzcxZWJhcHk5MHpoMXZxbDBpcWJ1bGdtam1xbGprbmZ4ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/GhySRlT2q4nj6SSbhC/giphy.gif'
             self.denier_role_name = 'Pan'
+
+            self._challenges_filename = 'challenges.json'
+
+        async def check_queue_exists(self,queue:deque, team_id:int):
+            """Check if a team ID exists in a queue.
+                Args:
+                    queue (deque): The queue to check
+                    team_id (int): Team ID to check for
+                    
+                Returns:
+                    bool: True if the team ID exists in the queue, False otherwise
+                """
+            return team_id in queue
+
+        async def check_exists(self, challenger_team_id:int, challengee_team_id:int, challenges:dict):
+            """Check if a challenge exists in the challenges.json file.
+                Args:
+                    challenger_team_id (int): Team ID of the challenger
+                    challengee_team_id (int): Team ID of the challengee
+                    
+                Returns:
+                    bool: True if the challenge exists, False otherwise
+                """
+            challenger_queue = challenges.get(challenger_team_id)
+            challengee_queue = challenges.get(challengee_team_id)
+            
+            # Check if the challenge exists in either queue
+            if challenger_queue and await self.check_queue_exists(challenger_queue, challengee_team_id):
+                return True
+            if challengee_queue and await self.check_queue_exists(challengee_queue, challenger_team_id):
+                return True
+            return False
+
+        async def serialize_data(self,challenges:dict):
+            print(challenges)
+            serializable = {}
+            for key, value in challenges.items():
+                serializable[key] = list(value)
+
+            print(serializable)
+            return serializable
+
+        async def add_challenges(self,challenger_team_id:int, challengee_team_id:int):
+            """Add a challenge to the challenges.json file.
+                Args:
+                    challenger_team_id (int): Team ID of the challenger
+                    challengee_team_id (int): Team ID of the challengee
+                    
+                Returns:
+                    None
+                """
+            # load challenges
+            exists = await self.bot.state.persistent_manager.path_exists(filename=self._challenges_filename)
+            if not exists:
+                await self.bot.state.persistent_manager.write_json(filename=self._challenges_filename, data={})
+
+            challenges = await self.bot.state.persistent_manager.load_json(self._challenges_filename)
+
+            if await self.check_exists(challenger_team_id, challengee_team_id, challenges):
+                return
+
+            if challenges.get(challenger_team_id) is not None:
+                challenges[challenger_team_id].append(challengee_team_id)
+            else:
+                new_deque = deque([challengee_team_id])
+                challenges[challenger_team_id] = new_deque
+
+            #serialized_data = await self.serialized_data(challenges)
+            await self.bot.state.persistent_manager.write_json(filename=self._challenges_filename, data=challenges)
+            #save_challenges(challenges)
 
         async def assign_role(self,member: discord.Member, role_name:str, channel: discord.TextChannel):
             guild = channel.guild
@@ -404,9 +480,11 @@ class SlapChallenge(commands.Cog):
                 self.bot.state.slap_channel_id = channel_id
 
         # save channel id to persistent data
-        data = await utility.get_private_discord_data_async()
+        data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
+        #utility.get_private_discord_data_async()
         data.update({'channel_id': channel_id})
-        await utility.set_private_discord_data_async(data)
+        await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
+        #utility.set_private_discord_data_async(data)
 
 
     @app_commands.command(name="slap",description="Slap Somebody. Loser=Chump. Denier=Pan")
@@ -418,7 +496,8 @@ class SlapChallenge(commands.Cog):
         await self.setup_slap_channel(interaction.channel.id)
             
         # add challenges if not on the start date
-        loaded_dates = await utility.load_dates()
+        loaded_dates = await self.bot.state.persistent_manager.load_json(filename=self._week_dates_filename)
+        #utility.load_dates()
 
         async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.state.fantasy_query.get_league()['league']
@@ -444,8 +523,8 @@ class SlapChallenge(commands.Cog):
         challengee_discord_id =discord_user.id
         challenger_discord_id = interaction.user.id
 
-        challengee_teamid = await utility.discord_to_teamid(challengee_discord_id)
-        challenger_teamid = await utility.discord_to_teamid(challenger_discord_id)
+        challengee_teamid = await utility.discord_to_teamid(challengee_discord_id, self.bot.state.persistent_manager)
+        challenger_teamid = await utility.discord_to_teamid(challenger_discord_id, self.bot.state.persistent_manager)
 
         description_text = f'{utility.id_to_mention(challenger_discord_id)} challenged {utility.id_to_mention(challengee_discord_id)} to a duel.'
         embed = discord.Embed(title = 'Slap', description = description_text,color = self.emb_color)

@@ -15,11 +15,13 @@ import json
 class TransactionsLog(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
-        self.filename = 'transactions.json'
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
 
         self.emb_color = self.bot.state.emb_color
+
+        self._transactions_filename = 'transactions.json'
+        self._private_filename = 'private.json'
 
         self.transactions:dict = None
         self.check_transactions.start()
@@ -179,7 +181,8 @@ class TransactionsLog(commands.Cog):
             await asyncio.sleep(10)
             
         # Update transactions .json file
-        await utility.store_transactions(self.transactions, self.filename)
+        await self.bot.state.persistent_manager.write_json(filename=self._transactions_filename, data=self.transactions)
+        #utility.store_transactions(self.transactions, self.filename)
 
 
     async def unpack_transaction(self, transaction_id:str):
@@ -218,7 +221,8 @@ class TransactionsLog(commands.Cog):
             return
         
         # Load transactions from file
-        self.transactions = await utility.load_transactions(self.filename)
+        self.transactions = await self.bot.state.persistent_manager.load_json(filename=self._transactions_filename)
+        #utility.load_transactions(self._transactions_filename)
 
         # testing temporary
         #await self.post_transaction('347')
@@ -235,7 +239,8 @@ class TransactionsLog(commands.Cog):
     
     async def setup_Transactions(self):
         # load private data 
-        data = await utility.get_private_discord_data_async()
+        data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
+        #utility.get_private_discord_data_async()
 
         raw_data = data.get('transactions_channel_id')
         if raw_data is None:

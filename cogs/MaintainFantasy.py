@@ -15,7 +15,7 @@ class MaintainFantasy(commands.Cog):
 
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
-
+        self._player_ids_filename = 'player_ids.csv'
 
     ###################################################
     # Setup fantasy object       
@@ -46,10 +46,11 @@ class MaintainFantasy(commands.Cog):
                 await self.bot.close()
                 return
             
-            players_dict = await utility.load_players_async()
+            #players_dict = await self.bot.state.persistent_manager.load_simple_csv(filename=self._player_ids_filename)
+            #utility.load_players_async()
             
             # Set bot state to the new fantasy query object
-            self.bot.state.fantasy_query = fantasyQuery(yahoo_query,players_dict)
+            self.bot.state.fantasy_query = fantasyQuery(yahoo_query)
 
             # Set current League
             self.bot.state.league = self.bot.state.fantasy_query.get_league()['league']

@@ -8,7 +8,7 @@ from yfpy.models import League, Player
 
 import asyncio
 import os
-import utility
+
 
 
 class PlayerIDs(commands.Cog):
@@ -18,8 +18,12 @@ class PlayerIDs(commands.Cog):
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
 
+        self._players = None
+        self._players_lock = asyncio.Lock()
+
         self.filepath = self.parent_dir / 'persistent_data'/ 'player_data.json'
         self.filename = 'player_data.json'
+        self.csv_filename = 'player_ids.csv'
 
 
     ###################################################
@@ -27,8 +31,8 @@ class PlayerIDs(commands.Cog):
     ###################################################
 
     async def add_new_player(self,player:Player):
-        if not self.bot.state.players or str(player.player_id) not in self.bot.state.players:
-            self.bot.state.players[str(player.player_id)] = str(player.name.full)
+        if not self._players or str(player.player_id) not in self._players:
+            self._players[str(player.player_id)] = str(player.name.full)
             return False
         else:
             print(f'[playerIDs] - Player {player.name.full}: {player.player_id} already exists in player list.')
@@ -55,7 +59,8 @@ class PlayerIDs(commands.Cog):
                 if found:
                     break
 
-            await utility.store_player_ids(self.bot.state.players, self.filename)
+            await self.bot.state.persistent_manager.write_json(self.filename, self._players)
+            #utility.store_player_ids(self._players, self.filename)
             start += 25
 
             # pace requests to avoid rate limit
@@ -68,16 +73,13 @@ class PlayerIDs(commands.Cog):
 
     @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
     @app_commands.command(name="create_player_csv", description= "create a CSV file with data from /collect_IDs command")
-    async def update_player_csv(self, interaction: discord.Interaction):
+    async def create_player_csv(self, interaction: discord.Interaction):
         await interaction.response.defer()
-        if self.bot.state.players is not None:
+        if self._players is not None:
             # Update player csv data file
-            await utility.store_players(self.bot.state.players)
-
-            # update fantasy query player dict
-            async with self.bot.state.fantasy_query_lock:
-                self.bot.state.fantasy_query.update_player_dict(self.bot.state.players)
-
+            await self.bot.state.persistent_manager.write_simple_csv(filename=self.csv_filename, data=self._players)
+            #utility.store_players(self._players)
+                      
             await interaction.followup.send('Player CSV file Created', ephemeral=True)
         else:
             await interaction.followup.send('No player data found. Please run /collect_IDs first.', ephemeral=True)
@@ -87,7 +89,7 @@ class PlayerIDs(commands.Cog):
     @app_commands.command(name="store_player_info", description= "Request and store ALL NFL player Info in batches")
     async def collect_IDs(self, interaction: discord.Interaction):
         await interaction.response.send_message('Collection Triggered')
-        print(f'Collection Triggered: Will be stored withinin {self.filepath}')
+        print(f'Collection Triggered: Will be stored within {self.filepath}')
         await self.request_player_info()
         
 
@@ -123,7 +125,9 @@ class PlayerIDs(commands.Cog):
     
     @commands.Cog.listener()
     async def on_ready(self):
-        self.bot.state.players = await utility.load_player_ids(self.filename)
+        async with self._players_lock:
+            self._players = await self.bot.state.persistent_manager.load_json(self.filename)
+        #await utility.load_player_ids(self.filename)
         print('[PlayerIDs] - Initialized\n  ..')
 
 
