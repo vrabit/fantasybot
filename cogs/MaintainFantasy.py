@@ -6,6 +6,7 @@ from yfpy.query import YahooFantasySportsQuery
 from fantasy import fantasyQuery
 
 import os
+import asyncio
 import utility
 
 class MaintainFantasy(commands.Cog):
@@ -63,8 +64,14 @@ class MaintainFantasy(commands.Cog):
     # Setup          
     ###################################################
     
+    async def wait_for_fantasy(self):
+        while self.bot.state.fantasy_query is None:
+            asyncio.sleep(1)
+
+
     @commands.Cog.listener()
     async def on_ready(self):
+        await self.wait_for_fantasy()
         print('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
 
 

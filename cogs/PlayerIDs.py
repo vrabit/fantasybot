@@ -17,6 +17,7 @@ class PlayerIDs(commands.Cog):
 
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
+        self._ready = False
 
         self._players = None
         self._players_lock = asyncio.Lock()
@@ -123,12 +124,20 @@ class PlayerIDs(commands.Cog):
     # Setup          
     ###################################################
     
+    async def wait_for_fantasy(self):
+        while self.bot.state.fantasy_query is None:
+            asyncio.sleep(1)
+        self._ready = True
+        
+
     @commands.Cog.listener()
     async def on_ready(self):
+        await self.wait_for_fantasy()
+
         async with self._players_lock:
             self._players = await self.bot.state.persistent_manager.load_json(self.filename)
         #await utility.load_player_ids(self.filename)
-        print('[PlayerIDs] - Initialized\n  ..')
+        print('[PlayerIDs] - Ready')
 
 
     ###################################################

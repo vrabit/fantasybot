@@ -12,13 +12,12 @@ import feedparser
 import utility
 
 
-RSS_QUEUE_FILE = 'rss_queue.json'
-
 class RSSHandler(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
+        self._ready = False
 
         # bot embed color
         self.emb_color = self.bot.state.emb_color
@@ -28,36 +27,29 @@ class RSSHandler(commands.Cog):
     
         self.MAX_QUEUE = 30
 
-        self.feed_queue = deque(maxlen=self.MAX_QUEUE)
+        self.feed_queue:deque = deque(maxlen=self.MAX_QUEUE)
         self.feed_queue_lock = asyncio.Lock()
 
         self._members_filename = 'members.json'
         self._private_filename = 'private.json'
-
-        if not self.poll_rss.is_running():
-            self.poll_rss.start()
-            print('[RSSHandler] - Polling Started')
+        self._rss_queue_filename = 'rss_queue.json'
 
 
     ###################################################
     # RSS Helpers          
     ###################################################
 
-    async def save_queue(self,filename=RSS_QUEUE_FILE):
+    async def save_queue(self):
+        print('[RSSHandler] - Saving Feed Queue')
         async with self.feed_queue_lock:
-            if not os.path.exists(self.parent_dir / 'persistent_data'):
-                os.makedirs(self.parent_dir / 'persistent_data')
-                
-            with open(self.parent_dir / 'persistent_data' / filename, 'w') as file:
-                json.dump(list(self.feed_queue), file, indent = 4)
+            serialized_feed_queue = list(self.feed_queue)
+            await self.bot.state.persistent_manager.write_json(filename = self._rss_queue_filename, data=serialized_feed_queue)
+        print('[RSSHandler] - Done')
 
-    async def load_queue(self,filename=RSS_QUEUE_FILE):
-        if not os.path.exists(self.parent_dir / 'persistent_data' / filename):
-            return deque(maxlen=self.MAX_QUEUE)
-        else:
-            with open(self.parent_dir / 'persistent_data' / filename, 'r') as file:
-                entries = json.load(file)
-                return deque(entries, maxlen=self.MAX_QUEUE)
+
+    async def load_queue(self):
+        feed_queue = await self.bot.state.persistent_manager.load_json(filename = self._rss_queue_filename)
+        return deque(feed_queue)
 
     async def fetch_rss(self,session,url):
         print('[RSSHandler] - Fetching RSS')
@@ -109,11 +101,8 @@ class RSSHandler(commands.Cog):
             print('[RSSHandler][Poll_RSS] - News channel not set')
             return
 
-        # wait to make sure session is set up
-        await asyncio.sleep(10)
         print('[RSSHandler][Poll_RSS] - Started')
-
-        loaded_queue = await self.load_queue(RSS_QUEUE_FILE)
+        loaded_queue = await self.load_queue()
         async with self.feed_queue_lock:
             self.feed_queue = loaded_queue
 
@@ -142,7 +131,7 @@ class RSSHandler(commands.Cog):
                             self.feed_queue.append({entry.get('title'):(entry.get('summary'),entry.get('link'))})
         
         print('[RSSHandler][Poll_RSS] - .. Done')
-        await self.save_queue(RSS_QUEUE_FILE)
+        await self.save_queue()
 
 
     ###################################################
@@ -204,17 +193,24 @@ class RSSHandler(commands.Cog):
         await self.bot.state.persistent_manager.write_json(filename=self._members_filename, data=members_list)
 
 
+    async def wait_for_fantasy(self):
+        while self.bot.state.fantasy_query is None:
+            asyncio.sleep(1)   
+
+
     @commands.Cog.listener()
     async def on_ready(self):
+        await self.wait_for_fantasy()
         print('[RSSHandler] - RSS Setup .. ')
 
         async with self.bot.state.fantasy_query_lock:
             team_list:list[Team] =self.bot.state.fantasy_query.get_teams()
 
         await self.update_memlist(team_list)
-        
-        #utility.init_memlist(team_list)
-        print('[RSSHandler] - Initialize Member List')
+
+        self.poll_rss.start()
+        self._ready = True
+        print('[RSSHandler] - Ready')
 
 
     ###################################################

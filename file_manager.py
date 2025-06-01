@@ -109,6 +109,7 @@ class BaseFileManager:
         else:
             return False
 
+
 class PersistentManager(BaseFileManager):
     def __init__(self):
         super().__init__('persistent_data')  
@@ -118,6 +119,8 @@ class RecapManager(BaseFileManager):
     def __init__(self):
         super().__init__('recap')
 
+
 class DiscordAuthManager(BaseFileManager):
     def __init__(self):
         super().__init__('discordauth')
+

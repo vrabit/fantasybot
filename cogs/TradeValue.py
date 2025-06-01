@@ -20,11 +20,11 @@ from datetime import datetime, timedelta
 class TradeValue(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
-        self.trade_value.start()
         self.date = None
 
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
+        self._ready = False
 
         # bot embed color
         self.emb_color = self.bot.state.emb_color
@@ -240,7 +240,7 @@ class TradeValue(commands.Cog):
             await self.add_sends(closest_key[0], str(interaction.user.id))
             message = await interaction.followup.send(f"Added {closest_key[0]} to send")
 
-            await asyncio.sleep(6)
+            await asyncio.sleep(10)
             await message.delete()
 
 
@@ -257,7 +257,7 @@ class TradeValue(commands.Cog):
             await self.add_receives(closest_key[0], str(interaction.user.id))
             message = await interaction.followup.send(f"Added {closest_key[0]} to receive")
 
-            await asyncio.sleep(6)
+            await asyncio.sleep(10)
             await message.delete()
 
 
@@ -318,8 +318,16 @@ class TradeValue(commands.Cog):
     # Setup          
     ###################################################
     
+    async def wait_for_fantasy(self):
+        while self.bot.state.fantasy_query is None:
+            asyncio.sleep(1)
+        
+
     @commands.Cog.listener()
     async def on_ready(self): 
+        await self.wait_for_fantasy()
+        self.trade_value.start()
+        self._ready = True
         print('[TradeValue] - Initialized TradeValue')
 
 

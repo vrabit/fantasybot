@@ -6,6 +6,7 @@ from pathlib import Path
 from yfpy import utils
 from yfpy.models import League, Transaction
 
+from datetime import datetime
 import utility
 import asyncio
 
@@ -17,6 +18,7 @@ class TransactionsLog(commands.Cog):
         self.bot = bot
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
+        self._ready = False
 
         self.emb_color = self.bot.state.emb_color
 
@@ -24,7 +26,6 @@ class TransactionsLog(commands.Cog):
         self._private_filename = 'private.json'
 
         self.transactions:dict = None
-        self.check_transactions.start()
 
 
     ###################################################
@@ -119,10 +120,12 @@ class TransactionsLog(commands.Cog):
             print(f'[TransactionLog] - Transaction not found: {transaction_id}')
             return
         
+        
+        current_date = datetime.fromtimestamp(transaction.get('timestamp'))
         description_string =( f'{'Type:':<20}{transaction.get('type')} \n'
                 f'{'Status:':<20}{transaction.get('status')}' ) 
         embed = discord.Embed(title = f'Transaction ID: {transaction.get('transaction_id')}', url='', 
-                              description = f'```{description_string}```', color = self.emb_color)
+                              description = f'```{description_string}```', timestamp=current_date,color = self.emb_color)
 
         if transaction.get('type') == 'commish':
             print('[TransactionLog] - Commissioner Transaction')
@@ -214,7 +217,6 @@ class TransactionsLog(commands.Cog):
     @tasks.loop(minutes=10)
     async def check_transactions(self):
         """Check for new transactions every 10 minutes."""
-        await asyncio.sleep(15)
         channel_set = await self.verify_transactions_channel()
         if not channel_set:
             print('[TransactionsLog][Check_Transactions] - Transactions channel not set')
@@ -222,11 +224,9 @@ class TransactionsLog(commands.Cog):
         
         # Load transactions from file
         self.transactions = await self.bot.state.persistent_manager.load_json(filename=self._transactions_filename)
-        #utility.load_transactions(self._transactions_filename)
 
         # testing temporary
         #await self.post_transaction('347')
-
 
         # Get check_if_new_entry
         await self.update_transactions()
@@ -255,9 +255,17 @@ class TransactionsLog(commands.Cog):
         return int(data.get('transactions_channel_id'))
     
 
+    async def wait_for_fantasy(self):
+        while self.bot.state.fantasy_query is None:
+            asyncio.sleep(1)
+        
+
     @commands.Cog.listener()
     async def on_ready(self):
-        print('[TransactionsLog] - Ready\n  ..')
+        await self.wait_for_fantasy()
+        self.check_transactions.start()
+        self._ready = True
+        print('[TransactionsLog] - Ready')
 
 
     ###################################################

@@ -43,7 +43,7 @@ bot = commands.Bot(command_prefix= "$", intents = intents, application_id = app_
 
 
 class BotState:
-    def __init__(self,guild_id:int = None, guild:discord.Object = None, emb_color:discord.Color = discord.Color.from_rgb(225, 198, 153)):
+    def __init__(self,guild_id:int = None, guild:discord.Object = None):
         # Shared resources and locks
         self.fantasy_query = None
         self.fantasy_query_lock = asyncio.Lock()
@@ -51,7 +51,11 @@ class BotState:
         self.session_lock = asyncio.Lock()
         self.guild_id = guild_id
         self.guild = guild
-        self.emb_color = emb_color
+        # colors
+        self.emb_color = discord.Color.from_rgb(225, 198, 153) # default
+        self.winner_color = discord.Color.from_rgb(55, 255, 119) # green
+        self.loser_color = discord.Color.from_rgb(154, 18, 26) # red
+        # set channels
         self.news_channel_id = None
         self.news_channel_id_lock = asyncio.Lock()
         self.slaps_channel_id = None
