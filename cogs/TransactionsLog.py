@@ -225,12 +225,18 @@ class TransactionsLog(commands.Cog):
         # Load transactions from file
         self.transactions = await self.bot.state.persistent_manager.load_json(filename=self._transactions_filename)
 
-        # testing temporary
-        #await self.post_transaction('347')
-
         # Get check_if_new_entry
         await self.update_transactions()
         print('[TransactionsLog] - .. Done')
+
+
+    ###################################################
+    # Loop Error Handling          
+    ###################################################
+
+    @check_transactions.error
+    async def check_transactions_error(self,error):
+        print(f'[TransactionsLog][check_transactions] - Error: {error} \n')
 
 
     ###################################################

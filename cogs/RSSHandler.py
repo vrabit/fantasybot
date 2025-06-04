@@ -214,6 +214,15 @@ class RSSHandler(commands.Cog):
 
 
     ###################################################
+    # Loop Error Handling          
+    ###################################################
+
+    @poll_rss.error
+    async def poll_rss_error(self,error):
+        print(f'[RSSHandler][poll_rss] - Error: {error}\n')
+
+
+    ###################################################
     # Handle Exit           
     ###################################################
 

@@ -615,6 +615,19 @@ class SlapChallenge(commands.Cog):
 
 
     ###################################################
+    # Loop Error Handling          
+    ###################################################
+
+    @remove_slap_roles.error
+    async def remove_slap_roles_error(self,error):
+        print(f'[SlapChallenge][remove_slap_roles] - Error: {error}\n')
+
+
+    @poll_slap.error
+    async def poll_slap_error(self,error):
+        print(f'[SlapChallenge][poll_slap] - Error: {error}\n')
+
+    ###################################################
     # Error Handling         
     ###################################################
 

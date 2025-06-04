@@ -752,9 +752,9 @@ class FantasyQuery(commands.Cog):
     @app_commands.command(name="season_recap",description="Season Recap.")
     async def season_recap(self,interaction:discord.Interaction):
         await interaction.response.defer()
-        raise ValueError('Testing')
 
-        #await interaction.followup.send("Filler",ephemeral=False)
+
+        await interaction.followup.send("Filler",ephemeral=False)
 
 
     ###################################################
@@ -779,6 +779,14 @@ class FantasyQuery(commands.Cog):
                 await interaction.response.send_message(message, ephemeral=True)
         except Exception as e:
             print(f"[FantasyQuery] - Failed to send error message: {e}")
+
+    ###################################################
+    # Loop Error Handling          
+    ###################################################
+
+    @store_data.error
+    async def store_data_error(self,error):
+        print(f'[FantasyQuery][store_data] - Error: {error}')
 
 
     ###################################################

@@ -297,7 +297,35 @@ class TradeValue(commands.Cog):
 
 
     ###################################################
-    # Error Handling          
+    # Update values every 24 hours      
+    ###################################################
+
+    @tasks.loop(minutes=1440)
+    async def trade_value(self):
+        current_date = datetime.today() 
+        if self.date is None or self.date != current_date:
+            print('[TradeValue] - Updating Trade Values')
+            async with self.player_values_lock:
+                self.player_values = self.request_values()
+
+                async with self.value_map_lock:
+                    self.value_map = self.format_values(self.player_values)
+            self.date = current_date
+            print('[TradeValue] - Trade Values .. Done')
+
+
+    ###################################################
+    # Loop Error Handling          
+    ###################################################
+
+    @trade_value.error
+    async def trade_value_error(self,error):
+        print(f'[TradeValue][trade_value] - Error: {error}')
+        print('[TradeValue][trade_value]: Unable to Setup Trade Value.\n')
+
+
+    ###################################################
+    # Error Handling         
     ###################################################
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -317,24 +345,7 @@ class TradeValue(commands.Cog):
             else:
                 await interaction.response.send_message(message, ephemeral=True)
         except Exception as e:
-            print(f"[TradeValue] - Failed to send error message: {e}")
-
-    ###################################################
-    # Update values every 24 hours      
-    ###################################################
-
-    @tasks.loop(minutes=1440)
-    async def trade_value(self):
-        current_date = datetime.today() 
-        if self.date is None or self.date == current_date - timedelta(days = 1):
-            print('[TradeValue] - Updating Trade Values')
-            async with self.player_values_lock:
-                self.player_values = self.request_values()
-
-                async with self.value_map_lock:
-                    self.value_map = self.format_values(self.player_values)
-            self.date = current_date
-            print('[TradeValue] - Trade Values .. Done')
+            print(f"[TradeValues] - Failed to send error message: {e}")
 
 
     ###################################################

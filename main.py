@@ -72,6 +72,10 @@ class BotState:
         self.recap_manager = file_manager.RecapManager()
         self.discord_auth_manager = file_manager.DiscordAuthManager()
 
+        # files
+        self._vault_accounts_filename = 'vault_accounts.json'
+        self._vault_contracts_filename = 'vault_contracts.json'
+
 
 bot.state = BotState(guild_id=guild_id, guild=guild)
 

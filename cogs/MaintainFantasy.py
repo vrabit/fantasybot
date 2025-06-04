@@ -62,7 +62,6 @@ class MaintainFantasy(commands.Cog):
         print('[MaintainFantasy] - .. Done')
 
 
-
     ###################################################
     # Setup          
     ###################################################
@@ -76,6 +75,16 @@ class MaintainFantasy(commands.Cog):
     async def on_ready(self):
         await self.wait_for_fantasy()
         print('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
+
+
+
+    ###################################################
+    # Loop Error Handling          
+    ###################################################
+
+    @refresh_fantasy.error
+    async def refresh_fantasy_error(self,error):
+        print(f'[MaintainFantasy][refresh_fantasy] - Error: {error}\n')
 
 
     ###################################################
