@@ -2,7 +2,6 @@ import discord
 from discord import app_commands
 from discord.ext import tasks,commands
 
-import json
 import asyncio
 import datetime
 import os
@@ -631,7 +630,7 @@ class SlapChallenge(commands.Cog):
 
 
     async def setup_discord(self):
-        data = await self.bot.state.discord_auth_manager(filename = self._private_filename)
+        data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
 
         channel_id = data.get('channel_id')
         if channel_id is not None:
