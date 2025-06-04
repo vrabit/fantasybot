@@ -14,6 +14,8 @@ from yfpy.models import Scoreboard, League, Matchup, Team, Player
 
 import os
 import datetime
+from functools import wraps
+
 
 
 class FantasyQuery(commands.Cog):
@@ -66,7 +68,7 @@ class FantasyQuery(commands.Cog):
     @app_commands.command(name="fantasy_info", description = "Lists Team IDs")
     async def fantasy_info(self,interaction: discord.Interaction):
         await interaction.response.defer()
-        async with self.bot.state.fantasy_query_lock:
+        async with self.bot.state.league_lock:
             fan_league = self.bot.state.league
             embed = discord.Embed(title = fan_league.name.decode('utf-8'), url=fan_league.url,description = 'Fantasy participants and IDs', color = self.emb_color ) 
             embed.set_thumbnail(url = fan_league.logo_url)
@@ -729,13 +731,13 @@ class FantasyQuery(commands.Cog):
             filename = f"week_{i}_matchup.json"
             serialized_data = await self.serialize_matchups(current_week_obj)
             await self.bot.state.recap_manager.write_json(filename=filename, data = serialized_data)
-            #utility.store_matchups(serialized_data,filename)
 
 
     @tasks.loop(minutes=1440)
     async def store_data(self):
-        async with self.bot.state.fantasy_query_lock:
-            fantasy_league_info = self.bot.state.fantasy_query.get_league()['league']
+
+        async with self.bot.state.league_lock:
+            fantasy_league_info = self.bot.state.league
 
         end_date = fantasy_league_info.end_date
         end_obj = datetime.datetime.strptime(end_date, '%Y-%m-%d').date() 
@@ -750,24 +752,33 @@ class FantasyQuery(commands.Cog):
     @app_commands.command(name="season_recap",description="Season Recap.")
     async def season_recap(self,interaction:discord.Interaction):
         await interaction.response.defer()
+        raise ValueError('Testing')
 
-
-        await interaction.followup.send("Filler",ephemeral=False)
+        #await interaction.followup.send("Filler",ephemeral=False)
 
 
     ###################################################
     # Error Handling         
     ###################################################
 
-    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+
+        message = ""
         if isinstance(error, app_commands.CommandNotFound):
-            await interaction.response.send_message("This command does not exist.", ephemeral=True)
+            message = "This command does not exist."
         elif isinstance(error, app_commands.CheckFailure):
-            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            message = "You do not have permission to use this command."
         else:
-            await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
-            # Log the error or print details for debugging
+            message = "An error occurred. Please try again."
             print(f"[FantasyQuery] - Error: {error}")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except Exception as e:
+            print(f"[FantasyQuery] - Failed to send error message: {e}")
 
 
     ###################################################

@@ -38,7 +38,6 @@ class fantasyQuery:
 
     def __init__(self, yahoo_query):
         self.yahoo_query = yahoo_query  
-        #self.player_dict = players_dict
         self.stat_dict = self.create_stat_file(self.get_stat_categories())
         self.league_key = self.yahoo_query.get_league_key()
         self.league = self.get_league()['league']

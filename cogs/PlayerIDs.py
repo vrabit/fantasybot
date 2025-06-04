@@ -98,15 +98,24 @@ class PlayerIDs(commands.Cog):
     # Error Handling         
     ###################################################
 
-    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+
+        message = ""
         if isinstance(error, app_commands.CommandNotFound):
-            await interaction.response.send_message("This command does not exist.", ephemeral=True)
+            message = "This command does not exist."
         elif isinstance(error, app_commands.CheckFailure):
-            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
+            message = "You do not have permission to use this command."
         else:
-            await interaction.response.send_message("An error occurred. Please try again.", ephemeral=True)
-            # Log the error or print details for debugging
+            message = "An error occurred. Please try again."
             print(f"[PlayerIDs] - Error: {error}")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except Exception as e:
+            print(f"[PlayerIDs] - Failed to send error message: {e}")
 
 
     ###################################################

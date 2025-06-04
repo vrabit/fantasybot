@@ -297,6 +297,29 @@ class TradeValue(commands.Cog):
 
 
     ###################################################
+    # Error Handling          
+    ###################################################
+
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+
+        message = ""
+        if isinstance(error, app_commands.CommandNotFound):
+            message = "This command does not exist."
+        elif isinstance(error, app_commands.CheckFailure):
+            message = "You do not have permission to use this command."
+        else:
+            message = "An error occurred. Please try again."
+            print(f"[TradeValue] - Error: {error}")
+
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(message, ephemeral=True)
+            else:
+                await interaction.response.send_message(message, ephemeral=True)
+        except Exception as e:
+            print(f"[TradeValue] - Failed to send error message: {e}")
+
+    ###################################################
     # Update values every 24 hours      
     ###################################################
 

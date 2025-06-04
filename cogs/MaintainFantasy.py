@@ -41,15 +41,17 @@ class MaintainFantasy(commands.Cog):
                     save_token_data_to_env_file=True,
                     env_file_location=auth_dir,
                 )
+                
+                if yahoo_query is None:
+                    raise ValueError('Failed to initialize YahooFantasySportsQuery')
+                
             except Exception as e:
-                print(f'[MaintainFantasy] - Error initializing Yahoo Fantasy Sports Query: {e}')
+                print(f'[MaintainFantasy] - Error: {e}')
                 print('[MaintainFantasy] - Verify elements within yfpyauth/config.json and yfpyauth/private.json')
                 await self.bot.close()
                 return
             
-            #players_dict = await self.bot.state.persistent_manager.load_simple_csv(filename=self._player_ids_filename)
-            #utility.load_players_async()
-            
+
             # Set bot state to the new fantasy query object
             self.bot.state.fantasy_query = fantasyQuery(yahoo_query)
 
@@ -58,6 +60,7 @@ class MaintainFantasy(commands.Cog):
 
 
         print('[MaintainFantasy] - .. Done')
+
 
 
     ###################################################

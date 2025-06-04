@@ -51,10 +51,12 @@ class BotState:
         self.session_lock = asyncio.Lock()
         self.guild_id = guild_id
         self.guild = guild
+
         # colors
         self.emb_color = discord.Color.from_rgb(225, 198, 153) # default
         self.winner_color = discord.Color.from_rgb(55, 255, 119) # green
         self.loser_color = discord.Color.from_rgb(154, 18, 26) # red
+        
         # set channels
         self.news_channel_id = None
         self.news_channel_id_lock = asyncio.Lock()

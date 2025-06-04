@@ -3,7 +3,7 @@ from discord.ext import tasks, commands
 
 from pathlib import Path
 import asyncio
-import json
+
 import os
 from collections import deque
 from yfpy.models import Team
