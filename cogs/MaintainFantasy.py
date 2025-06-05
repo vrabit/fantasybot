@@ -14,6 +14,8 @@ class MaintainFantasy(commands.Cog):
         self.bot = bot
         self.refresh_fantasy.start()
 
+        self._ready = False
+
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
         self._player_ids_filename = 'player_ids.csv'
@@ -67,8 +69,14 @@ class MaintainFantasy(commands.Cog):
     ###################################################
     
     async def wait_for_fantasy(self):
-        while self.bot.state.fantasy_query is None:
-            asyncio.sleep(1)
+        while not self._ready:
+            async with self.bot.state.fantasy_query_lock:
+                fantasy_query = self.bot.state.fantasy_query
+            if fantasy_query is not None:
+                self._ready = True
+            else:
+                await asyncio.sleep(1)
+
 
 
     @commands.Cog.listener()

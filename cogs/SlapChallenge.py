@@ -19,7 +19,7 @@ class SlapChallenge(commands.Cog):
         self._ready = False
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
-        self._ready = False
+
 
         # keep track of active view instances
         self.active_views = []
@@ -673,8 +673,13 @@ class SlapChallenge(commands.Cog):
 
 
     async def wait_for_fantasy(self):
-        while self.bot.state.fantasy_query is None:
-            asyncio.sleep(1)
+        while not self._ready:
+            async with self.bot.state.fantasy_query_lock:
+                fantasy_query = self.bot.state.fantasy_query
+            if fantasy_query is not None:
+                self._ready = True
+            else:
+                await asyncio.sleep(1)
         
 
     @commands.Cog.listener()
@@ -682,7 +687,6 @@ class SlapChallenge(commands.Cog):
         await self.wait_for_fantasy()
         await self.setup_discord()
         self.poll_slap.start()
-        self._ready = True
         print('[SlapChallenge] - Ready')
 
 

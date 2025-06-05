@@ -44,6 +44,10 @@ bot = commands.Bot(command_prefix= "$", intents = intents, application_id = app_
 
 class BotState:
     def __init__(self,guild_id:int = None, guild:discord.Object = None):
+        # ready check
+        self.memlist_ready_lock = asyncio.Lock()
+        self.memlist_ready = False
+
         # Shared resources and locks
         self.fantasy_query = None
         self.fantasy_query_lock = asyncio.Lock()
@@ -72,9 +76,6 @@ class BotState:
         self.recap_manager = file_manager.RecapManager()
         self.discord_auth_manager = file_manager.DiscordAuthManager()
 
-        # files
-        self._vault_accounts_filename = 'vault_accounts.json'
-        self._vault_contracts_filename = 'vault_contracts.json'
 
 
 bot.state = BotState(guild_id=guild_id, guild=guild)

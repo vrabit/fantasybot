@@ -194,8 +194,13 @@ class RSSHandler(commands.Cog):
 
 
     async def wait_for_fantasy(self):
-        while self.bot.state.fantasy_query is None:
-            asyncio.sleep(1)   
+        while not self._ready:
+            async with self.bot.state.fantasy_query_lock:
+                fantasy_query = self.bot.state.fantasy_query
+            if fantasy_query is not None:
+                self._ready = True
+            else:
+                await asyncio.sleep(1)
 
 
     @commands.Cog.listener()
@@ -207,9 +212,10 @@ class RSSHandler(commands.Cog):
             team_list:list[Team] =self.bot.state.fantasy_query.get_teams()
 
         await self.update_memlist(team_list)
+        async with self.bot.state.memlist_ready_lock:
+            self.bot.state.memlist_ready = True
 
         self.poll_rss.start()
-        self._ready = True
         print('[RSSHandler] - Ready')
 
 

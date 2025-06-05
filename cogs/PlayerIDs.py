@@ -134,9 +134,14 @@ class PlayerIDs(commands.Cog):
     ###################################################
     
     async def wait_for_fantasy(self):
-        while self.bot.state.fantasy_query is None:
-            asyncio.sleep(1)
-        self._ready = True
+        while not self._ready:
+            async with self.bot.state.fantasy_query_lock:
+                fantasy_query = self.bot.state.fantasy_query
+            if fantasy_query is not None:
+                self._ready = True
+            else:
+                await asyncio.sleep(1)
+
         
 
     @commands.Cog.listener()
