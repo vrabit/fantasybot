@@ -124,3 +124,7 @@ class DiscordAuthManager(BaseFileManager):
     def __init__(self):
         super().__init__('discordauth')
 
+
+class TestingManager(BaseFileManager):
+    def __init__(self):
+        super().__init__('testing_output')

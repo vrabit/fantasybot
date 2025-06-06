@@ -7,6 +7,7 @@ from yfpy.models import League
 
 import os
 from dotenv import load_dotenv
+from bet_vault.vault import Vault
 
 import signal
 import asyncio
@@ -75,6 +76,9 @@ class BotState:
         self.persistent_manager = file_manager.PersistentManager()
         self.recap_manager = file_manager.RecapManager()
         self.discord_auth_manager = file_manager.DiscordAuthManager()
+
+        # shared vault 
+        self.vault:Vault = Vault()
 
 
 
