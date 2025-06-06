@@ -15,6 +15,7 @@ __pycache__/
 
 # Ignore server specific files
 /recap/
+/testing_output/
 
 # Ignore temporary file
 build-context.tar
