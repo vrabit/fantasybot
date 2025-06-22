@@ -1,14 +1,5 @@
-#from pathlib import Path
-
-import os
 import utility
 
-# 
-#project_dir = Path(__file__).parent.parent
-#sys.path.insert(0, str(project_dir))
-
-#player_url = self.constants.LEAGUE_URL+'/players;player_keys=449.p.30123/stats;type=week;week=2'
-#player_url = self.constants.LEAGUE_URL+ '/players;player_keys=449.p.30123/ownership;type=week;week=2'
 
 class fantasyQuery:
     @property
@@ -53,10 +44,8 @@ class fantasyQuery:
 
     # FIX THIS, NEVER CALLED 
     def team_info(self):
-        print('called...')
         #teams = self.yahoo_query.get_league_teams()
         curr_data = repr(self.yahoo_query.get_league_teams())
-        print(curr_data)
         return curr_data
     
 
@@ -155,11 +144,6 @@ class fantasyQuery:
     def get_game_weeks_by_game_id(self):
         return self.yahoo_query.get_game_weeks_by_game_id(self.yahoo_query.game_id)
 
-    """
-    def get_game_weeks(self):
-        game_url = self.GAME_URL + self.yahoo_query.get_game_key_by_season(self.SEASON)
-        return self.yahoo_query.query(f'{game_url}/game_weeks',['game'],data_type_class=None, sort_function=None)
-    """ 
 
     def get_team_stats(self, week, team_id):
         return self.yahoo_query.get_team_stats_by_week(team_id, week)

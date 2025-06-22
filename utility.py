@@ -4,6 +4,9 @@ import string
 
 current_dir = Path(__file__).parent
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 EMPTY = '\u001b'
 _member_filename = 'members.json'
@@ -99,7 +102,7 @@ def arg_to_int(arg:int | float | str | bool) -> int | None:
         to_int = int(arg)
         return to_int
     except ValueError:
-        print(f"{arg} is not a valid integer")
+        logger.error(f"{arg} is not a valid integer")
         return None
 
 

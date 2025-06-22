@@ -1,8 +1,8 @@
 import discord
 from discord.ext import  commands
+from discord.app_commands import CommandSyncFailure
 
 from pathlib import Path
-
 from yfpy.models import League
 
 import os
@@ -15,9 +15,31 @@ import aiohttp
 
 import file_manager
 
+import logging
+import logging.config
+import json
+
 
 current_dir = Path(__file__).parent
 
+###################################################
+# Setup logger     
+###################################################
+
+# Ensure logs directory exists
+os.makedirs("logs", exist_ok=True)
+
+config_path = current_dir / "logging_config.json"
+with open(config_path, "r") as f:
+    config = json.load(f)
+
+logging.config.dictConfig(config)
+logger = logging.getLogger(__name__)
+
+
+###################################################
+# Load ENV Variables    
+###################################################
 
 # Load environment variables from .env files
 load_dotenv(current_dir / 'yfpyauth' / ".env.config")
@@ -35,7 +57,6 @@ guild_id = int(os.getenv('GUILD_ID'))
 guild = discord.Object(id=guild_id)
 app_id = int(os.getenv('APP_ID'))
 
-print(type(guild))
 
 # Set up the bot with all intents
 intents = discord.Intents.default()
@@ -71,14 +92,16 @@ class BotState:
         self.transactions_channel_id_lock = asyncio.Lock()
         self.league: League = None
         self.league_lock = asyncio.Lock()
-        
+
         # file managers
         self.persistent_manager = file_manager.PersistentManager()
         self.recap_manager = file_manager.RecapManager()
         self.discord_auth_manager = file_manager.DiscordAuthManager()
+        self.live_manager = file_manager.LiveManager()
+        self.vault_manager = file_manager.VaultManager()
 
         # shared vault 
-        self.vault:Vault = Vault()
+        self.vault:Vault = None
 
 
 
@@ -91,13 +114,13 @@ bot.state = BotState(guild_id=guild_id, guild=guild)
 
 async def setup_session():
     async with bot.state.session_lock:
-        print('[Main_Setup] - aiohttp Session Started')
+        logger.info('[Main_Setup] - aiohttp Session Started')
         bot.state.session = aiohttp.ClientSession()
 
 
 async def close_session():
     async with bot.state.session_lock: 
-        print('[Main_Setup] - aiohttp Session Closed')   
+        logger.info('[Main_Setup] - aiohttp Session Closed')   
         await bot.state.session.close()
         bot.state.session = None
 
@@ -111,7 +134,7 @@ async def close_session():
 @commands.is_owner()
 async def clear_global_commands(ctx:commands.Context)->None:
     ctx.bot.tree.clear_commands(guild=guild)
-    print('[Main_Setup] - Cleared global commands.')
+    logger.info('[Main_Setup] - Cleared global commands.')
 
 
 @bot.command()
@@ -119,7 +142,7 @@ async def clear_global_commands(ctx:commands.Context)->None:
 @commands.is_owner()
 async def clear_guild_commands(ctx:commands.Context)->None:
     ctx.bot.tree.clear_commands(guild=ctx.guild)
-    print('[Main_Setup] - Cleared guild commands.')
+    logger.info('[Main_Setup] - Cleared guild commands.')
 
 
 @bot.command()
@@ -128,19 +151,19 @@ async def clear_guild_commands(ctx:commands.Context)->None:
 async def sync(ctx:commands.Context)->None:
     try:
         commands = await ctx.bot.tree.sync(guild=ctx.guild)
-        print(f"[Main_Setup] - {len(commands)} Commands synced to guild: {ctx.guild.id}")
+        logger.info(f"[Main_Setup] - {len(commands)} Commands synced to guild: {ctx.guild.id}")
         await ctx.send("Synced the tree.")
     except discord.HTTPException as e:
-        print(f"[Main_Setup] - HTTPException: Failed to sync commands for guild {ctx.guild.id} due to an HTTP error: {e}")
-    except discord.CommandSyncFailure as e:
-        print(f"[Main_Setup] - CommandSyncFailure: Command sync failed for guild {ctx.guild.id} - possibly invalid command data: {e}")
-    except discord.Forbidden:
-        print(f"[Main_Setup] - Forbidden: Bot lacks the 'applications.commands' scope for guild {ctx.guild.id}. Check permissions.")
-    except discord.MissingApplicationID:
-        print("[Main_Setup] - MissingApplicationID: Bot is missing an application ID. Ensure it's set properly.")
-    except discord.TranslationError as e:
-        print(f"[Main_Setup] - TranslationError: A translation issue occurred while syncing commands: {e}")
-    
+        logger.error(f"[Main_Setup] - HTTPException: Failed to sync commands for guild {ctx.guild.id} due to an HTTP error: {e}")
+    except discord.Forbidden:   
+        logger.error(f"[Main_Setup] - Forbidden: Bot lacks the 'applications.commands' scope for guild {guild.id}. Check permissions.")
+    except CommandSyncFailure:
+        logger.error("Command sync failed.")
+    except discord.DiscordException as e:
+        logger.error(f"[Main_Setup] - DiscordException: An error occurred while syncing commands: {e}")
+    except Exception as e:
+        logger.error(f'Caught error: {e}')
+
 
 ###################################################
 # Startup         
@@ -150,19 +173,18 @@ async def sync(ctx:commands.Context)->None:
 async def on_ready():
     try:
         await bot.tree.sync(guild=guild)
-        print(f'[Main_Setup] - Synced commands to guild: {guild.id}')
+        logger.info(f'[Main_Setup] - Synced commands to guild: {guild.id}')
     except discord.HTTPException as e:
-        print(f"[Main_Setup] - HTTPException: Failed to sync commands for guild {guild.id} due to an HTTP error: {e}")
-    except discord.CommandSyncFailure as e:
-        print(f"[Main_Setup] - CommandSyncFailure: Command sync failed for guild {guild.id} - possibly invalid command data: {e}")
+        logger.error(f"[Main_Setup] - HTTPException: Failed to sync commands for guild {guild.id} due to an HTTP error: {e}")
     except discord.Forbidden:
-        print(f"[Main_Setup] - Forbidden: Bot lacks the 'applications.commands' scope for guild {guild.id}. Check permissions.")
-    except discord.MissingApplicationID:                    
-        print("[Main_Setup] - MissingApplicationID: Bot is missing an application ID. Ensure it's set properly.")
-    except discord.TranslationError as e:
-        print(f"[Main_Setup] - TranslationError: A translation issue occurred while syncing commands: {e}")
-
-    print('[Main_Setup] - Bot is ready.')
+        logger.error(f"[Main_Setup] - Forbidden: Bot lacks the 'applications.commands' scope for guild {guild.id}. Check permissions.")
+    except CommandSyncFailure:
+        logger.error("Command sync failed.")
+    except discord.DiscordException as e:
+        logger.error(f"[Main_Setup] - DiscordException: An error occurred while syncing commands: {e}")
+    except Exception as e:
+        logger.error(f'Caught error: {e}')
+    logger.info('[Main_Setup] - Bot is ready.')
 
 
 ###################################################
@@ -173,13 +195,13 @@ async def shutdown():
     try:
         await bot.close()
     except Exception as e:
-        print (f'[Main_Setup] - Error during shutdown: {e}')
+        logger.info(f'[Main_Setup] - Error during shutdown: {e}')
 
 
 def handle_exit(signal_received, frame):
-    print(f'\n[Main_Setup] - Signal {signal_received}.')
-    print(f'[Main_Setup] - Current Function: {frame.f_code.co_name}')
-    print(f'[Main_Setup] - Line number: {frame.f_lineno}\n')
+    logger.info(f'[Main_Setup] - Signal {signal_received}.')
+    logger.info(f'[Main_Setup] - Current Function: {frame.f_code.co_name}')
+    logger.info(f'[Main_Setup] - Line number: {frame.f_lineno}\n')
     
     bot.loop.create_task(close_session())
     bot.loop.create_task(shutdown())
@@ -197,7 +219,7 @@ signal.signal(signal.SIGTERM,handle_exit)
 async def load_Test():
     for filename in os.listdir('./cogs'):
         if filename.startswith('MaintainFantasy') or filename.startswith('RSS'):
-            print(f'[Main_Setup] - Loaded {filename}')
+            logger.info(f'[Main_Setup] - Loaded {filename}')
             await bot.load_extension(f'cogs.{filename[:-3]}')
 
 
@@ -206,7 +228,7 @@ async def load_extensions():
     for filename in os.listdir('./cogs'):
         if filename.endswith('py') and not filename.startswith('__'):
             await bot.load_extension(f'cogs.{filename[:-3]}')
-            print(f'[Main_Setup] - Loaded {filename}')
+            logger.info(f'[Main_Setup] - Loaded {filename}')
 
 
 #######################################################
