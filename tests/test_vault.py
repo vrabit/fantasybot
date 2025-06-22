@@ -1,24 +1,21 @@
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from collections import deque
 from exceptions.vault_exceptions import ExpirationDateError
 
 from bet_vault.vault import Vault
-import file_manager
 
 
-
-_filename_accounts = 'accounts_test.json'
-_filename_contracts = 'contracts_test.json'
-
-#######################################################
-# Individual Tests
-#######################################################
+#############################################################################
+# fixtures
+#############################################################################
 
 @pytest.fixture(autouse=True)
 def fresh_vault():
     Vault.accounts.clear()
-    Vault.contracts.clear()
+    for _, value in Vault.contracts.items():
+        value.clear()
+
 
 @pytest.fixture
 def setup_accounts():
@@ -30,38 +27,69 @@ def setup_accounts():
 
 @pytest.fixture
 def setup_three_accounts():
-    account1 = Vault.BankAccount('banana', '<@59729789855555555>','59729789855555555', '3', 100)
-    account2 = Vault.BankAccount('pesado', '<@95444595755555555>','95444595755555555', '4', 100)
-    account3 = Vault.BankAccount('taco','<@95648312555555555>','95648312555555555', '5', 100)
+    account1 = Vault.BankAccount(name='banana', discord_tag='<@59729789855555555>', discord_id='59729789855555555', fantasy_id='3', money=100)
+    account2 = Vault.BankAccount(name='pesado', discord_tag='<@95444595755555555>', discord_id='95444595755555555', fantasy_id='4', money=100)
+    account3 = Vault.BankAccount(name='taco', discord_tag='<@95648312555555555>', discord_id='95648312555555555', fantasy_id='5', money=100)
     Vault.accounts['3'] = account1
     Vault.accounts['4'] = account2
     Vault.accounts['5'] = account3
     return account1, account2, account3
 
-@pytest.fixture
-def create_contracts_deque_and_accounts(setup_three_accounts):
-    account1, account2, account3 = setup_three_accounts
+
+@pytest.fixture 
+async def setup_vault_accounts():
     accounts_dict = {}
+    contracts_deque = deque()
+    account1 = Vault.BankAccount(name='banana', discord_tag='<@59729789855555555>', discord_id='59729789855555555', fantasy_id='3', money=100)
+    account2 = Vault.BankAccount(name='pesado', discord_tag='<@95444595755555555>', discord_id='95444595755555555', fantasy_id='4', money=100)
+    account3 = Vault.BankAccount(name='taco', discord_tag='<@95648312555555555>', discord_id='95648312555555555', fantasy_id='5', money=100)
     accounts_dict[account1.fantasy_id] = account1
     accounts_dict[account2.fantasy_id] = account2
     accounts_dict[account3.fantasy_id] = account3
 
+    await Vault.initialize(accounts_dict, contracts_deque)
+
+@pytest.fixture 
+async def setup_vault_accounts_and_slap_contracts():
+    accounts_dict = {}
     contracts_deque = deque()
-    date = datetime.today()
-    contract1 = Vault.Contract(account1, account2, 10, date)
-    contract2 = Vault.Contract(account1, account3, 10, date)
-    contract3 = Vault.Contract(account2, account3, 10, date)
-    contract4 = Vault.Contract(account3, account1, 10, date)
-    contracts_deque.append(contract1)
-    contracts_deque.append(contract2)
-    contracts_deque.append(contract3)
-    contracts_deque.append(contract4)
+    account1 = Vault.BankAccount(name='banana', discord_tag='<@59729789855555555>', discord_id='59729789855555555', fantasy_id='3', money=100)
+    account2 = Vault.BankAccount(name='pesado', discord_tag='<@95444595755555555>', discord_id='95444595755555555', fantasy_id='4', money=100)
+    account3 = Vault.BankAccount(name='taco', discord_tag='<@95648312555555555>', discord_id='95648312555555555', fantasy_id='5', money=100)
+    accounts_dict[account1.fantasy_id] = account1
+    accounts_dict[account2.fantasy_id] = account2
+    accounts_dict[account3.fantasy_id] = account3
 
-    return contracts_deque,accounts_dict
+    await Vault.initialize(accounts_dict, contracts_deque)
 
-# object init #
+    yesterday = datetime.today() - timedelta(days = 1)
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account2.fantasy_id, 
+        amount = 50, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account3.fantasy_id, 
+        amount = 50, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )      
+
+
+#############################################################################
+# bank_account tests
+#############################################################################
+
 @pytest.mark.asyncio
-@pytest.mark.initialization
+@pytest.mark.bank_account
 async def test_vault_initialization():
     account = Vault.BankAccount('banana','<@59729789855555555>','59729789855555555', '3', 100)
     assert account.name == 'banana'
@@ -71,49 +99,7 @@ async def test_vault_initialization():
     assert account.discord_id == '59729789855555555'
 
 @pytest.mark.asyncio
-@pytest.mark.initialization
-async def test_contract_initialization(setup_accounts):
-    account1, account2 = setup_accounts
-    date = datetime.today()
-    contract = Vault.Contract(account1, account2, 100, date)
-    assert contract.challenger == account1
-    assert contract.challengee == account2
-    assert contract.amount == 200 # 100 from each
-    assert contract.expiration == date
-    assert contract.executed == False
-
-@pytest.mark.asyncio
-@pytest.mark.initialization
-async def test_contract_initialization_insufficient_funds(setup_accounts):
-    account1, account2 = setup_accounts
-    date = datetime.today()
-    
-    with pytest.raises(ValueError):
-        contract = Vault.Contract(account1, account2, 101, date)
-
-@pytest.mark.asyncio
-@pytest.mark.initialization
-async def test_contract_initialization_negative_amount(setup_accounts):
-    account1, account2 = setup_accounts
-    date = datetime.today()
-    
-    with pytest.raises(ValueError):
-        contract = Vault.Contract(account1, account2, -50, date)
-
-@pytest.mark.asyncio
-@pytest.mark.initialization
-async def test_vault_initialize_def(create_contracts_deque_and_accounts):
-    contracts_deque, accounts_dict= create_contracts_deque_and_accounts
-    
-    manager = file_manager.TestingManager()
-    await Vault.initialize(manager, _filename_contracts, _filename_accounts, accounts_dict, contracts_deque)
-    assert len(Vault.accounts) == 3
-    assert len(Vault.contracts) == 4
-
-
-# transfer money #
-@pytest.mark.asyncio
-@pytest.mark.transfer_money
+@pytest.mark.bank_account
 async def test_transfer_money(setup_accounts):
     acc1, acc2 = setup_accounts
     await Vault.transfer_money("3", "4", 50)
@@ -121,7 +107,7 @@ async def test_transfer_money(setup_accounts):
     assert acc2.money == 150
 
 @pytest.mark.asyncio
-@pytest.mark.transfer_money
+@pytest.mark.bank_account
 async def test_transfer_money_bad_input(setup_accounts):
     acc1, acc2 = setup_accounts
     with pytest.raises(TypeError):
@@ -133,30 +119,28 @@ async def test_transfer_money_bad_input(setup_accounts):
     with pytest.raises(TypeError):
         await Vault.transfer_money(3, 4, '50')
 
-
-# add money #
 @pytest.mark.asyncio
-@pytest.mark.add_money
+@pytest.mark.bank_account
 async def test_add_money_success(setup_accounts):
     account, _ = setup_accounts
     await Vault.add_money('3',50)
     assert account.money == 150
     
 @pytest.mark.asyncio
-@pytest.mark.add_money
+@pytest.mark.bank_account
 async def test_add_money_negative(setup_accounts):
     _, account = setup_accounts
     with pytest.raises(ValueError):
         await Vault.add_money('4',-50)
     
 @pytest.mark.asyncio
-@pytest.mark.add_money
+@pytest.mark.bank_account
 async def test_add_money_id_fail():
     with pytest.raises(ValueError):
         await Vault.add_money('6',10)
 
 @pytest.mark.asyncio
-@pytest.mark.add_money
+@pytest.mark.bank_account
 async def test_add_money_bad_input(setup_accounts):
     account1, account2 = setup_accounts
     with pytest.raises(TypeError):
@@ -166,10 +150,8 @@ async def test_add_money_bad_input(setup_accounts):
     with pytest.raises(TypeError):
         await Vault.add_money('3','50')
 
-
-# deduct money #
 @pytest.mark.asyncio
-@pytest.mark.deduct_money
+@pytest.mark.bank_account
 async def test_deduct_money_success(setup_accounts):
     account, _= setup_accounts
     await Vault.deduct_money('3',50)
@@ -178,27 +160,27 @@ async def test_deduct_money_success(setup_accounts):
     assert account.money == 0 
 
 @pytest.mark.asyncio
-@pytest.mark.deduct_money
+@pytest.mark.bank_account
 async def test_deduct_money_negative(setup_accounts):
     account, _= setup_accounts
     with pytest.raises(ValueError):
         await Vault.deduct_money('3', -50)
 
 @pytest.mark.asyncio
-@pytest.mark.deduct_money
+@pytest.mark.bank_account
 async def test_deduct_money_id_fail():
     with pytest.raises(ValueError):
         await Vault.deduct_money('6', 50)
 
 @pytest.mark.asyncio
-@pytest.mark.deduct_money
+@pytest.mark.bank_account
 async def test_deduct_money_balance_fail(setup_accounts):
     account, _= setup_accounts
     with pytest.raises(ValueError):
         await Vault.deduct_money('3', 150)
 
 @pytest.mark.asyncio
-@pytest.mark.deduct_money
+@pytest.mark.bank_account
 async def test_deduct_money_bad_input(setup_accounts):
     account1, account2 = setup_accounts
     with pytest.raises(TypeError):
@@ -209,52 +191,311 @@ async def test_deduct_money_bad_input(setup_accounts):
         await Vault.deduct_money('3','50')
 
 
-#######################################################
-# Contract Tests
-#######################################################
+#############################################################################
+# contract
+#############################################################################
+
+@pytest.mark.asyncio
+@pytest.mark.contract
+async def test_contract_initialization():
+    date_today = datetime.today()
+    contract = Vault.Contract(amount=100, expiration_date=date_today, week=4)
+
+    assert contract.expiration.date() == date.today()    
+    assert contract.executed == False
+    assert contract.week == 4
+    assert contract.contract_type == 'Contract'
+    assert contract.amount == 100 
+    assert contract._new == True
+
+
+#############################################################################
+# slap_contract
+#############################################################################
+
+@pytest.mark.asyncio
+@pytest.mark.slap_contract
+async def test_slap_contract_initialization(setup_accounts):
+    account1, account2 = setup_accounts
+    date_today = datetime.today()
+    contract = Vault.SlapContract(challenger=account1, challengee=account2, amount = 100, expiration_date=date_today, week=4)
+
+    assert contract.challenger == account1
+    assert contract.challengee == account2
+    assert contract.challenger.money == 0
+    assert contract.challengee.money == 0 
+    assert contract.expiration.date() == date.today()    
+    assert contract.executed == False
+    assert contract.week == 4
+    assert contract.contract_type == 'SlapContract'
+    assert contract.amount == 100 
+    assert contract._new == True
+
+@pytest.mark.asyncio
+@pytest.mark.slap_contract
+async def test_contract_initialization_insufficient_funds(setup_accounts):
+    account1, account2 = setup_accounts
+    date_today = datetime.today()
+    
+    with pytest.raises(ValueError):
+        contract = Vault.SlapContract(challenger=account1, challengee=account2, amount = 101, expiration_date=date_today, week=4)
+
+@pytest.mark.asyncio
+@pytest.mark.slap_contract
+async def test_contract_initialization_negative_amount(setup_accounts):
+    account1, account2 = setup_accounts
+    date_today = datetime.today()
+    
+    with pytest.raises(ValueError):
+        contract = Vault.SlapContract(challenger=account1, challengee=account2, amount = -50, expiration_date=date_today, week=4)
 
 
 @pytest.mark.asyncio
-@pytest.mark.execute_contract
-async def test_execute_contract_success(setup_accounts):
-    account1, account2 = setup_accounts
-    today = datetime.today()
-    contract = Vault.Contract(account1, account2, 50, today)
+@pytest.mark.general
+async def test_execute_vault_initialize(setup_vault_accounts):
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    slaps_length = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+    wagers_length = await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__)
+    assert slaps_length == 0
+    assert wagers_length == 0
+    assert account1.money == 100
+    assert account2.money == 100
+
+
+@pytest.mark.asyncio
+@pytest.mark.slap_contract
+async def test_execute_slap_contract_success(setup_vault_accounts):
+    yesterday = datetime.today() - timedelta(days = 1)
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    contract = Vault.SlapContract(challenger=account1, challengee=account2, amount=50, expiration_date=yesterday, week=4)
+    assert account1.money == 50
+    assert account2.money == 50
+    assert contract.executed == False
 
     await contract.execute_contract(account1)
+    assert account1.money == 150
+    assert account2.money == 50
     assert contract.executed == True
 
 @pytest.mark.asyncio
-@pytest.mark.execute_contract
-async def test_execute_contract_date_fail(setup_accounts):
-    account1, account2 = setup_accounts
-    tomorrow = datetime.today() + timedelta(days=1)
-    contract = Vault.Contract(account1, account2, 50, tomorrow)
-
-    with pytest.raises(ExpirationDateError):
-        await contract.execute_contract(account1)
-
-@pytest.mark.asyncio
-@pytest.mark.execute_contract
-async def test_execute_contract_input_type_fail(setup_accounts):
-    account1, account2 = setup_accounts
-    tomorrow = datetime.today() - timedelta(days=1)
-    contract = Vault.Contract(account1, account2, 50, tomorrow)
-
-    with pytest.raises(TypeError):
-        await contract.execute_contract('banana')
-    with pytest.raises(TypeError):
-        await contract.execute_contract('banana')
-    with pytest.raises(TypeError):
-        await contract.execute_contract(contract)
+@pytest.mark.slap_contract
+async def test_def_create_contract_slap(setup_vault_accounts):
+    yesterday = datetime.today() - timedelta(days = 1)
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account2.fantasy_id, 
+        amount = 50, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+ 
+    assert account1.money == 50
+    assert account2.money == 50
+    contracts_length = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+    assert contracts_length == 1
 
 @pytest.mark.asyncio
-@pytest.mark.execute_contract
-async def test_execute_contract_invalid_account(setup_three_accounts):
-    account1, account2, account3 = setup_three_accounts
-    yesterday = datetime.today() - timedelta(days=1)
-    contract = Vault.Contract(account1, account2, 50, yesterday)
+@pytest.mark.slap_contract
+async def test_def_create_contract_slap_multiple(setup_vault_accounts):
+    yesterday = datetime.today() - timedelta(days = 1)
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account2.fantasy_id, 
+        amount = 50, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account3.fantasy_id, 
+        amount = 50, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+
+    assert account1.money == 0
+    assert account2.money == 50
+    assert account3.money == 50
+    contracts_length = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+    assert contracts_length == 2
+
+@pytest.mark.asyncio
+@pytest.mark.slap_contract
+async def test_slap_multiple_execution(setup_vault_accounts):
+    yesterday = datetime.today() - timedelta(days = 1)
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account2.fantasy_id, 
+        amount = 50, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account3.fantasy_id, 
+        amount = 50, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+
+    ready = await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__)
+    assert ready == True
+    contract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+    assert contract.challenger == account1
+    assert contract.challengee == account2
+    await contract.execute_contract(account2)
+    await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
+
+    assert account1.money == 0
+    assert account2.money == 150
+    
+    ready = await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__)
+    assert ready == True
+    contract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+    await contract.execute_contract(account3)
+
+    assert account1.money == 0
+    assert account3.money == 150
+    await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
+    
+    contract_length = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+    assert contract_length == 0
+
+@pytest.mark.asyncio
+@pytest.mark.slap_contract
+async def test_slap_load_store_accounts_serialized(setup_vault_accounts):
+    account_list = await Vault.serialize_accounts()
+    contract_list = []
+    Vault.accounts.clear()
+    for _, value in Vault.contracts.items():
+        value.clear()
+
+    assert len(Vault.accounts) == 0
+    for key,value in Vault.contracts.items():
+        assert len(value) == 0
+
+    await Vault.initialize_from_serialized(accounts=account_list, slap_contracts=contract_list)
+
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+    assert account1.name == 'banana'
+    assert account1.discord_tag == '<@59729789855555555>'
+    assert account1.discord_id == '59729789855555555'
+    assert account1.fantasy_id == '3'
+    assert account1.money == 100
+
+    assert account2.name == 'pesado'
+    assert account2.discord_tag == '<@95444595755555555>'
+    assert account2.discord_id == '95444595755555555'
+    assert account2.fantasy_id == '4'
+    assert account2.money == 100
+
+    assert account3.name == 'taco'
+    assert account3.discord_tag == '<@95648312555555555>'
+    assert account3.discord_id == '95648312555555555'
+    assert account3.fantasy_id == '5'
+    assert account3.money == 100
+
+@pytest.mark.asyncio
+@pytest.mark.slap_contract
+async def test_slap_load_store_accounts_contracts_serialized(setup_vault_accounts_and_slap_contracts):
+    account_list = await Vault.serialize_accounts()
+    contract_list = await Vault.serialize_contracts(contract_type=Vault.SlapContract.__name__)
+    assert len(contract_list) == 2
+
+    assert Vault.accounts.get('3').money == 0
+    assert Vault.accounts.get('4').money == 50
+    assert Vault.accounts.get('4').money == 50
+
+    Vault.accounts.clear()
+    for _, value in Vault.contracts.items():
+        value.clear()
+
+
+    assert len(Vault.accounts) == 0
+    for _,value in Vault.contracts.items():
+        assert len(value) == 0
+
+    await Vault.initialize_from_serialized(accounts=account_list, slap_contracts=contract_list)
+
+    assert len(Vault.accounts) == 3
+    assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 2
+    assert Vault.accounts.get('3').money == 0
+    assert Vault.accounts.get('4').money == 50
+    assert Vault.accounts.get('4').money == 50
+
+
+#############################################################################
+# group_wager tests
+#############################################################################
+
+@pytest.mark.asyncio
+@pytest.mark.group_wager_contract
+async def test_group_simple_wager_contract(setup_vault_accounts):
+    yesterday = datetime.today() - timedelta(days = 1)
+    wager = Vault.GroupWagerContract(team_1_id='1',team_2_id='2', expiration_date=yesterday,week=4, amount=10)
+    
+    assert wager.winnings == 0
+    assert len(wager.predictions) == 0
+
+    gambler_acc = Vault.accounts.get('3')
+    await wager.add_prediction(gambler=gambler_acc, prediction_id='2', prediction_points=45, amount=5)
+    assert wager.executed == False
+
+    assert wager.winnings == 5
+    assert len(wager.predictions) == 1
+    assert Vault.accounts.get('3').money == 95
+
+    await wager.execute_contract(gambler_acc)
+    assert Vault.accounts.get('3').money == 100
+    assert wager.executed == True
 
     with pytest.raises(ValueError):
-        await contract.execute_contract(account3)
+        await wager.execute_contract(gambler_acc)
 
+@pytest.mark.asyncio
+@pytest.mark.group_wager_contract
+async def test_group_wager_contract_duplicate(setup_vault_accounts):
+    yesterday = datetime.today() - timedelta(days = 1)
+    wager = Vault.GroupWagerContract(team_1_id='1',team_2_id='2', expiration_date=yesterday,week=4, amount=10)
+    
+    assert wager.winnings == 0
+    assert len(wager.predictions) == 0
+
+    gambler_acc_1 = Vault.accounts.get('3')
+    await wager.add_prediction(gambler=gambler_acc_1, prediction_id='2', prediction_points=45, amount=5)
+
+    with pytest.raises(ValueError):
+        await wager.add_prediction(gambler=gambler_acc_1, prediction_id='3', prediction_points=60, amount=5)
+    with pytest.raises(ValueError):
+        await wager.add_prediction(gambler=gambler_acc_1, prediction_id='2', prediction_points=70, amount=5)
+
+@pytest.mark.asyncio
+@pytest.mark.group_wager_contract
+async def test_group_wager_interface(setup_vault_accounts):
+    yesterday = datetime.today() - timedelta(days = 1)
+    await Vault.create_contract(team_1_id='8', team_2_id='9', expiration_date=yesterday, week=4, contract_type=Vault.GroupWagerContract.__name__)
+
+    slap_contracts_len = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+    wager_contract_len = await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__)
+    assert slap_contracts_len == 0
+    assert wager_contract_len == 1
+
+    next_wager = await Vault.get_next_contract(contract_type=Vault.GroupWagerContract.__name__)
+    assert len(next_wager.predictions) == 0
