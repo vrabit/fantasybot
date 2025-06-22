@@ -151,6 +151,11 @@ class Vault():
                 ')'
             )
         
+        def __eq__(self, value):
+            if not isinstance(value, Vault.SlapContract):
+                raise TypeError(f'Expected {self.__class__.__name__}')
+            return {self.challenger, self.challengee} == {value.challenger, value.challengee}
+
         @classmethod
         async def contract_from_serialized(cls:Type[Vault.SlapContract], serialized_contract:dict):
             challenger_dict = serialized_contract.get('challenger')
@@ -181,7 +186,7 @@ class Vault():
 
         async def execute_contract(self, winner:Vault.BankAccount):
             if self.executed:
-                raise ValueError('executed is True.')
+                raise ValueError('Executed is True.')
 
             if not isinstance(winner, Vault.BankAccount):
                 raise TypeError('Invalid input type.')
@@ -228,6 +233,11 @@ class Vault():
                     f'prediction_points={self.prediction_points}\n'
                     ')'
                 )
+            
+            def __eq__(self, value):
+                if not isinstance(value,Vault.GroupWagerContract.Prediction):
+                    return False
+                return value.gambler == self.gambler
 
         def __init__(
             self, team_1_id:str, team_2_id:str, 
@@ -236,11 +246,13 @@ class Vault():
             super().__init__(amount, expiration_date, week, executed)
             if not isinstance(team_1_id,str) or not isinstance(team_2_id,str):
                 raise TypeError('Invalid team_id type.')
- 
+            if team_1_id == team_2_id:
+                raise ValueError('Both id\'s must be unique.')
+
             self._contract_type = self.__class__.__name__
             self._team_1_id = team_1_id
             self._team_2_id = team_2_id
-            self._amount:int = 0
+            self._amount:int = amount
             self._predictions_deque:deque[Vault.GroupWagerContract.Prediction] = deque()
 
 
@@ -284,9 +296,14 @@ class Vault():
                 f'executed={self.executed}\n'
                 ')'
             )
+        
+        def __eq__(self, value):
+            if not isinstance(value,Vault.GroupWagerContract):
+                return False
+            return {value.team_1_id, value.team_2_id} == {self.team_1_id, self.team_2_id}
 
-        async def matchup_contract_exists(self, team_id:int):
-            if self._team_1_id == team_id or self._team_2_id == team_id:
+        async def found(self, id:int):
+            if self._team_1_id == id or self._team_2_id == id:
                 return True
             return False
         
@@ -305,6 +322,7 @@ class Vault():
                 raise ValueError('Duplicates are not allowed.')
             new_prediction = self.Prediction(gambler=gambler, prediction_team=prediction_id, prediction_points=prediction_points)
 
+
             self.predictions.append(new_prediction)
             self._amount += amount
             gambler.money -= amount
@@ -322,7 +340,14 @@ class Vault():
             week = serialized_contract.get('week')
             executed = serialized_contract.get('executed') == 'True'
             amount = serialized_contract.get('amount')
-            contract = cls(team_1_id, team_2_id, amount, expiration, week, executed, False)
+            contract = cls(
+                team_1_id=team_1_id, 
+                team_2_id=team_2_id, 
+                amount=amount, 
+                expiration_date=expiration, 
+                week=week, 
+                executed=executed
+            )
 
             # create new deque and use that to init 
             new_deque = deque()
@@ -335,7 +360,7 @@ class Vault():
 
         async def construct_serialized_list(self):
             predictions_list = []
-            for entry in self.predictions_deque:
+            for entry in self.predictions:
                 predictions_list.append(entry.serialize())
             return predictions_list
 
@@ -430,8 +455,10 @@ class Vault():
         def __eq__(self, other):
             if not isinstance(other, Vault.BankAccount):
                 return NotImplemented
-            
             return self.fantasy_id == other.fantasy_id
+
+        def __hash__(self):
+            return hash(self.fantasy_id)
 
         @classmethod
         async def from_serialized(cls:Type[Vault.BankAccount],serialized_account:dict):
@@ -453,7 +480,7 @@ class Vault():
 
 
     ###################################################################
-    # Vault storage and data retrieval 
+    # Contract utility
     ###################################################################
 
     CONTRACT_REGISTRY = {
@@ -470,7 +497,7 @@ class Vault():
 
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
-    async def len_contracts(cls, contract_type:str):
+    async def len_contracts(cls, contract_type:str) -> int:
         return len(cls.contracts.get(contract_type))
 
     @classmethod
@@ -502,39 +529,41 @@ class Vault():
             contract_list.append(contract)
         return contract_list
 
-    @classmethod
-    async def serialize_accounts(cls):
-        account_list = []
-        for key, value in cls.accounts.items():
-            account = await value.serialize()
-            account_list.append(account)
-        return account_list
 
-    @classmethod
-    async def fantasy_id_by_discord_id(cls, discord_id):
-        for key, value in cls.accounts.items():
-            if value.discord_id == discord_id:
-                return key
-        return None
+    ###################################################################
+    # slaps specific
+    ###################################################################
 
-    @classmethod
-    async def bank_account_info_by_discord_id(cls, discord_id):
-        for key, value in cls.accounts.items():
-            if value.discord_id == discord_id:
-                return str(value)
-        return None
-    
     @staticmethod
     async def create_slap_contract(challenger_fantasy_id:str, challengee_fantasy_id:str, amount:int, expiration_date:datetime, week:int):
         challenger = __class__.accounts.get(challenger_fantasy_id)
         challengee = __class__.accounts.get(challengee_fantasy_id)
         return Vault.SlapContract(challenger,challengee, amount,expiration_date, week)
 
+
+    ###################################################################
+    # wagers specific
+    ###################################################################
+
     @staticmethod
     async def create_wager_contract(team_1_id:str, team_2_id:str, expiration_date:datetime, week:int, amount:int=0, executed:bool=False):
         return Vault.GroupWagerContract(team_1_id=team_1_id, team_2_id=team_2_id, expiration_date=expiration_date, week=week, amount=amount, executed=False)
 
+    @classmethod
+    async def wager_exists(cls, id:str) -> bool:
+        for entry in cls.contracts.get(Vault.GroupWagerContract.__name__):
+            if await entry.found(id=id):
+                return True
+        return False
     
+    @classmethod
+    async def get_wager(cls, id:str) -> Vault.GroupWagerContract:
+        for entry in cls.contracts.get(Vault.GroupWagerContract.__name__):
+            if await entry.found(id=id):
+                return entry
+        return None
+
+
     ###################################################################
     # Create Contract interface
     ###################################################################
@@ -565,9 +594,32 @@ class Vault():
         else:
             return
 
+
     ###################################################################
     # Bank Account utility
     ###################################################################
+
+    @classmethod
+    async def serialize_accounts(cls):
+        account_list = []
+        for key, value in cls.accounts.items():
+            account = await value.serialize()
+            account_list.append(account)
+        return account_list
+
+    @classmethod
+    async def fantasy_id_by_discord_id(cls, discord_id):
+        for key, value in cls.accounts.items():
+            if value.discord_id == discord_id:
+                return key
+        return None
+
+    @classmethod
+    async def bank_account_info_by_discord_id(cls, discord_id):
+        for key, value in cls.accounts.items():
+            if value.discord_id == discord_id:
+                return str(value)
+        return None
 
     @classmethod
     async def transfer_money(cls,from_fantasy_id:str, to_fantasy_id:str, amount:int):
