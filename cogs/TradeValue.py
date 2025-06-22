@@ -16,6 +16,9 @@ import numpy as np
 
 from datetime import datetime, timedelta
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class TradeValue(commands.Cog):
     def __init__(self,bot):
@@ -44,9 +47,9 @@ class TradeValue(commands.Cog):
         try:
             player_values = response.json()
         except ValueError:
-            print("[TradeValue] - Error: Received invalid response from api.fantasycalc")
+            logger.error("[TradeValue] - Error: Received invalid response from api.fantasycalc")
         except Exception as e:
-            print(f'[TradeValue] - Error: {e}')
+            logger.error(f'[TradeValue] - Error: {e}')
 
         return player_values
 
@@ -235,7 +238,7 @@ class TradeValue(commands.Cog):
         async with self.value_map_lock:
             closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
         if len(closest_key) == 0:
-            await interaction.followup.send("Failed to match player")
+            await interaction.followup.send("Failed to match player.")
         else:
             await self.add_sends(closest_key[0], str(interaction.user.id))
             message = await interaction.followup.send(f"Added {closest_key[0]} to send")
@@ -252,7 +255,7 @@ class TradeValue(commands.Cog):
         async with self.value_map_lock:
             closest_key = get_close_matches(player,self.value_map,n=1,cutoff=0.6)
         if len(closest_key) == 0:
-            await interaction.followup.send("Failed to match player")
+            await interaction.followup.send("Failed to match player.")
         else:
             await self.add_receives(closest_key[0], str(interaction.user.id))
             message = await interaction.followup.send(f"Added {closest_key[0]} to receive")
@@ -304,14 +307,14 @@ class TradeValue(commands.Cog):
     async def trade_value(self):
         current_date = datetime.today() 
         if self.date is None or self.date != current_date:
-            print('[TradeValue] - Updating Trade Values')
+            logger.info('[TradeValue] - Updating Trade Values')
             async with self.player_values_lock:
                 self.player_values = self.request_values()
 
                 async with self.value_map_lock:
                     self.value_map = self.format_values(self.player_values)
             self.date = current_date
-            print('[TradeValue] - Trade Values .. Done')
+            logger.info('[TradeValue] - Trade Values .. Done')
 
 
     ###################################################
@@ -320,8 +323,7 @@ class TradeValue(commands.Cog):
 
     @trade_value.error
     async def trade_value_error(self,error):
-        print(f'[TradeValue][trade_value] - Error: {error}')
-        print('[TradeValue][trade_value]: Unable to Setup Trade Value.\n')
+        logger.error(f'[TradeValue][trade_value] - Error: {error}\n [TradeValue][trade_value]: Unable to Setup Trade Value.')
 
 
     ###################################################
@@ -337,7 +339,7 @@ class TradeValue(commands.Cog):
             message = "You do not have permission to use this command."
         else:
             message = "An error occurred. Please try again."
-            print(f"[TradeValue] - Error: {error}")
+        logger.error(f"[TradeValue] - Error: {error}")
 
         try:
             if interaction.response.is_done():
@@ -345,7 +347,7 @@ class TradeValue(commands.Cog):
             else:
                 await interaction.response.send_message(message, ephemeral=True)
         except Exception as e:
-            print(f"[TradeValues] - Failed to send error message: {e}")
+            logger.error(f"[TradeValues] - Failed to send error message: {e}")
 
 
     ###################################################
@@ -366,7 +368,7 @@ class TradeValue(commands.Cog):
     async def on_ready(self): 
         await self.wait_for_fantasy()
         self.trade_value.start()
-        print('[TradeValue] - Initialized TradeValue')
+        logger.info('[TradeValue] - Initialized TradeValue')
 
 
     ####################################################
@@ -374,7 +376,7 @@ class TradeValue(commands.Cog):
     ####################################################
 
     async def cog_load(self):
-        print('[TradeValue] - Cog Load .. ')
+        logger.info('[TradeValue] - Cog Load .. ')
         guild = discord.Object(id=self.bot.state.guild_id)
         for command in self.get_app_commands():
             self.bot.tree.add_command(command, guild=guild)
@@ -385,8 +387,7 @@ class TradeValue(commands.Cog):
 
     def cog_unload(self):
         self.trade_value.cancel()
-        print('[TradeValue] - Cog Unload')
-
+        logger.info('[TradeValue] - Cog Unload')
 
 
 async def setup(bot):

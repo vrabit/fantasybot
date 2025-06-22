@@ -9,7 +9,8 @@ from yfpy.models import League, Player
 import asyncio
 import os
 
-
+import logging
+logger = logging.getLogger(__name__)
 
 class PlayerIDs(commands.Cog):
     def __init__(self,bot):
@@ -36,7 +37,7 @@ class PlayerIDs(commands.Cog):
             self._players[str(player.player_id)] = str(player.name.full)
             return False
         else:
-            print(f'[playerIDs] - Player {player.name.full}: {player.player_id} already exists in player list.')
+            logger.warning(f'[playerIDs] - Player {player.name.full}: {player.player_id} already exists in player list.')
             return True
 
 
@@ -50,10 +51,10 @@ class PlayerIDs(commands.Cog):
 
             # check if null or empty league or players_list
             if league is None or players_list is None or not players_list:
-                print('[PlayerIDs] - Empty playerlist')
+                logger.warning('[PlayerIDs] - Empty playerlist')
                 break
 
-            print(f'[PlayerIds] - Collecting players from {start} to {start + 24}')
+            logger.info(f'[PlayerIds] - Collecting players from {start} to {start + 24}')
             for player in players_list:
                 found = await self.add_new_player(player)
 
@@ -90,7 +91,7 @@ class PlayerIDs(commands.Cog):
     @app_commands.command(name="store_player_info", description= "Request and store ALL NFL player Info in batches")
     async def collect_IDs(self, interaction: discord.Interaction):
         await interaction.response.send_message('Collection Triggered')
-        print(f'Collection Triggered: Will be stored within {self.filepath}')
+        logger.info(f'Collection Triggered: Will be stored within {self.filepath}')
         await self.request_player_info()
         
 
@@ -107,7 +108,7 @@ class PlayerIDs(commands.Cog):
             message = "You do not have permission to use this command."
         else:
             message = "An error occurred. Please try again."
-            print(f"[PlayerIDs] - Error: {error}")
+        logger.error(f"[PlayerIDs] - Error: {error}")
 
         try:
             if interaction.response.is_done():
@@ -115,7 +116,7 @@ class PlayerIDs(commands.Cog):
             else:
                 await interaction.response.send_message(message, ephemeral=True)
         except Exception as e:
-            print(f"[PlayerIDs] - Failed to send error message: {e}")
+            logger.error(f"[PlayerIDs] - Failed to send error message: {e}")
 
 
     ###################################################
@@ -123,7 +124,7 @@ class PlayerIDs(commands.Cog):
     ###################################################
 
     async def cog_load(self):
-        print('[PlayersIDs] - Cog Load .. ')
+        logger.info('[PlayersIDs] - Cog Load .. ')
         guild = discord.Object(id=self.bot.state.guild_id)
         for command in self.get_app_commands():
             self.bot.tree.add_command(command, guild=guild)
@@ -151,7 +152,7 @@ class PlayerIDs(commands.Cog):
         async with self._players_lock:
             self._players = await self.bot.state.persistent_manager.load_json(self.filename)
         #await utility.load_player_ids(self.filename)
-        print('[PlayerIDs] - Ready')
+        logger.info('[PlayerIDs] - Ready')
 
 
     ###################################################
@@ -159,7 +160,7 @@ class PlayerIDs(commands.Cog):
     ###################################################
 
     def cog_unload(self):
-        print('[PlayerIDs] - Cog Unload')
+        logger.info('[PlayerIDs] - Cog Unload')
 
 
 

@@ -16,6 +16,8 @@ import os
 import datetime
 from functools import wraps
 
+import logging
+logger = logging.getLogger(__name__)
 
 
 class FantasyQuery(commands.Cog):
@@ -60,7 +62,7 @@ class FantasyQuery(commands.Cog):
         directory = self.parent_dir / 'cogs'
         for filename in directory:
             if filename.is_file() and filename.endswith('py') and not filename.startswith('__'):
-                print(f'[FantasyQuery] - Reload {filename}')
+                logger.info(f'[FantasyQuery] - Reload {filename}')
                 await self.bot.load_extension(f'cogs.{filename[:-3]}')
             await interaction.response.send_message('Reload Done')
 
@@ -219,7 +221,12 @@ class FantasyQuery(commands.Cog):
         else:
             member = interaction.guild.get_member(int(discord_user))
             if member is None:
-                member = await interaction.guild.fetch_member(int(discord_user))
+                try:
+                    member = await interaction.guild.fetch_member(int(discord_user))
+                except Exception as e:
+                    logger.error(f'[FantasyQuery][construct_chump_champ] - Error: {e}')
+                    interaction.followup.send(f'Failed to Construct Player Profile.')
+                    return
 
             if discord_user is not None:
                 embed_starting.set_author(name = member.display_name, url=lowest_team.url, icon_url = member.display_avatar.url)
@@ -274,7 +281,7 @@ class FantasyQuery(commands.Cog):
             matchups_list:list[Matchup] = self.bot.state.fantasy_query.get_scoreboard(week).matchups
         lowest_team:Team = await FantasyQueryHelper.lowest_points_matchup_list(matchups_list)
 
-        await self.construct_chump('Chump', league,lowest_team,interaction, week, self.loser_color)
+        await self.construct_chump_champ('Chump', league,lowest_team,interaction, week, self.loser_color)
 
 
     @app_commands.command(name="chump",description="Loser of the current week")
@@ -289,7 +296,7 @@ class FantasyQuery(commands.Cog):
             matchups_list = self.bot.state.fantasy_query.get_scoreboard(week).matchups
         lowest_team:Team = await FantasyQueryHelper.lowest_points_matchup_list(matchups_list)
 
-        await self.construct_chump('Chump', fantasy_league, lowest_team, interaction, week, self.loser_color)
+        await self.construct_chump_champ('Chump', fantasy_league, lowest_team, interaction, week, self.loser_color)
 
 
     @app_commands.command(name="week_mvp",description="MVP of the specified week")
@@ -746,7 +753,7 @@ class FantasyQuery(commands.Cog):
         if end_obj < today_obj:
             await self.log_season(fantasy_league_info)
         else:
-            print('[FantasyQuery] - Fantasy season has not ended.')
+            logger.info('[FantasyQuery] - Fantasy season has not ended.')
 
 
     @app_commands.command(name="season_recap",description="Season Recap.")
@@ -770,7 +777,8 @@ class FantasyQuery(commands.Cog):
             message = "You do not have permission to use this command."
         else:
             message = "An error occurred. Please try again."
-            print(f"[FantasyQuery] - Error: {error}")
+
+        logger.error(f"[FantasyQuery] - Error: {error}")
 
         try:
             if interaction.response.is_done():
@@ -778,7 +786,7 @@ class FantasyQuery(commands.Cog):
             else:
                 await interaction.response.send_message(message, ephemeral=True)
         except Exception as e:
-            print(f"[FantasyQuery] - Failed to send error message: {e}")
+            logger.error(f"[FantasyQuery] - Failed to send error message: {e}")
 
     ###################################################
     # Loop Error Handling          
@@ -786,7 +794,7 @@ class FantasyQuery(commands.Cog):
 
     @store_data.error
     async def store_data_error(self,error):
-        print(f'[FantasyQuery][store_data] - Error: {error}')
+        logger.error(f'[FantasyQuery][store_data] - Error: {error}')
 
 
     ###################################################
@@ -794,7 +802,7 @@ class FantasyQuery(commands.Cog):
     ###################################################
 
     async def cog_load(self):
-        print('[FantasyQuery] - Cog Load .. ')
+        logger.info('[FantasyQuery] - Cog Load .. ')
         guild = discord.Object(id=self.bot.state.guild_id)
         for command in self.get_app_commands():
             self.bot.tree.add_command(command, guild=guild)
@@ -817,9 +825,9 @@ class FantasyQuery(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
-        print('[FantasyQuery][store_data] - Starting!')
+        logger.info('[FantasyQuery][store_data] - Starting!')
         self.store_data.start()
-        print('[FantasyQuery] - Ready')
+        logger.info('[FantasyQuery] - Ready')
 
 
     ###################################################
@@ -827,9 +835,8 @@ class FantasyQuery(commands.Cog):
     ###################################################
 
     def cog_unload(self):
-        print('[FantasyQuery] - Cog Unload')
+        logger.info('[FantasyQuery] - Cog Unload')
 
 
 async def setup(bot):
-    print('[FantasyQuery] - Setup .. ')
     await bot.add_cog(FantasyQuery(bot))

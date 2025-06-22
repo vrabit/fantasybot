@@ -9,9 +9,15 @@ import os
 import asyncio
 import utility
 
+import logging
+logger = logging.getLogger(__name__)
+
+
 class MaintainFantasy(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
+        logger = logging.getLogger(__name__)
+
         self.refresh_fantasy.start()
 
         self._ready = False
@@ -27,7 +33,7 @@ class MaintainFantasy(commands.Cog):
     @tasks.loop(minutes=60)
     async def refresh_fantasy(self):
         """Refresh the fantasy object every hour."""
-        print('[MaintainFantasy] - Initializing Fantasy Object')
+        logger.info('[MaintainFantasy] - Initializing Fantasy Object')
         async with self.bot.state.fantasy_query_lock:
             # set directory location of private.json for authentication
             auth_dir = self.parent_dir / 'yfpyauth' 
@@ -48,8 +54,8 @@ class MaintainFantasy(commands.Cog):
                     raise ValueError('Failed to initialize YahooFantasySportsQuery')
                 
             except Exception as e:
-                print(f'[MaintainFantasy] - Error: {e}')
-                print('[MaintainFantasy] - Verify elements within yfpyauth/config.json and yfpyauth/private.json')
+                logger.error(f'[MaintainFantasy] - Error: {e}')
+                logger.error('[MaintainFantasy] - Verify elements within yfpyauth/config.json and yfpyauth/private.json')
                 await self.bot.close()
                 return
             
@@ -60,8 +66,7 @@ class MaintainFantasy(commands.Cog):
             # Set current League
             self.bot.state.league = self.bot.state.fantasy_query.get_league()['league']
 
-
-        print('[MaintainFantasy] - .. Done')
+        logger.info('[MaintainFantasy] - .. Done')
 
 
     ###################################################
@@ -82,7 +87,7 @@ class MaintainFantasy(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
-        print('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
+        logger.info('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
 
 
 
@@ -92,7 +97,7 @@ class MaintainFantasy(commands.Cog):
 
     @refresh_fantasy.error
     async def refresh_fantasy_error(self,error):
-        print(f'[MaintainFantasy][refresh_fantasy] - Error: {error}\n')
+        logger.info(f'[MaintainFantasy][refresh_fantasy] - Error: {error}\n')
 
 
     ###################################################
@@ -101,7 +106,7 @@ class MaintainFantasy(commands.Cog):
 
     def cog_unload(self):
         self.refresh_fantasy.cancel()
-        print('[MaintainFantasy] - Cog Unload')
+        logger.info('[MaintainFantasy] - Cog Unload')
 
 
 

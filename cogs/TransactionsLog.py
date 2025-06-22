@@ -12,6 +12,9 @@ import asyncio
 
 import json
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 class TransactionsLog(commands.Cog):
     def __init__(self,bot):
@@ -84,7 +87,7 @@ class TransactionsLog(commands.Cog):
             elif transaction_data.get('type') == 'drop':
                 transaction_data_string = await self.drop_transaction_string(transaction_data)
             else:
-                print('[TransactionLog][compose_player_string] - Error: Unhandled transaction type.')
+                logger.warning('[TransactionLog][compose_player_string] - Error: Unhandled transaction type.')
 
         # compose transaction field        
         embed.add_field(name=f'{name}', value=f"```{player_string}{transaction_data_string}```", inline=False)
@@ -99,12 +102,12 @@ class TransactionsLog(commands.Cog):
                 for player in players:
                     await self.compose_player_string(player.get('player'),embed)
         except Exception as e:
-            print(f'[TransactionLog] - Error: {e}')
+            logger.error(f'[TransactionLog] - Error: {e}')
             
 
     async def post_transaction(self, transaction_id:str):
         """Post a transaction to the transactions channel."""
-        print('[TransactionLog] - Posting Transaction')
+        logger.info('[TransactionLog] - Posting Transaction')
         async with self.bot.state.transactions_channel_id_lock:
             local_id = self.bot.state.transactions_channel_id
         
@@ -112,12 +115,12 @@ class TransactionsLog(commands.Cog):
         if channel is None:
             channel = await self.bot.fetch_channel(int(local_id))
 
-        print(f'[TransactionLog] - send channel : {channel}')
+        logger.info(f'[TransactionLog] - send channel : {channel}')
 
         # Unpack transaction
         transaction:dict = await self.unpack_transaction(str(transaction_id))
         if transaction is None:
-            print(f'[TransactionLog] - Transaction not found: {transaction_id}')
+            logger.warning(f'[TransactionLog] - Transaction not found: {transaction_id}')
             return
         
         
@@ -128,9 +131,9 @@ class TransactionsLog(commands.Cog):
                               description = f'```{description_string}```', timestamp=current_date,color = self.emb_color)
 
         if transaction.get('type') == 'commish':
-            print('[TransactionLog] - Commissioner Transaction')
+            logger.info('[TransactionLog] - Commissioner Transaction')
         else:
-            print('[TransactionLog] - Player Transaction')
+            logger.info('[TransactionLog] - Player Transaction')
             await self.parse_players(transaction.get('players'),embed)
 
         await channel.send(embed = embed)
@@ -144,14 +147,14 @@ class TransactionsLog(commands.Cog):
 
             # Add transaction to self.transactions
             self.transactions[str(transaction.transaction_id)] = dict_entry
-            print(f'[TransactionsLog] - New transaction found: {transaction.transaction_id}')
+            logger.info(f'[TransactionsLog] - New transaction found: {transaction.transaction_id}')
 
             # Post transaction to channel
             await self.post_transaction(transaction.transaction_id)
             
             return False
         else:
-            print(f'[TransactionsLog] - Transaction already exists: {transaction.transaction_id}')
+            logger.info(f'[TransactionsLog] - Transaction already exists: {transaction.transaction_id}')
             return True
 
 
@@ -165,7 +168,7 @@ class TransactionsLog(commands.Cog):
             transactions:Transaction = league.transactions
 
             if league is None or transactions is None:
-                print('[TransactionsLog] - No transactions found')
+                logger.info('[TransactionsLog] - No transactions found')
                 break
 
             for transaction in transactions:
@@ -193,11 +196,10 @@ class TransactionsLog(commands.Cog):
         if transaction_id in self.transactions:
             try:
                 transactions_string = utils.unpack_data(self.transactions[transaction_id], parent_class=Transaction)
-                #print(transactions_string)
                 transaction_dict = json.loads(transactions_string)
                 return transaction_dict
             except Exception as e:
-                print(f'[TransactionsLog] - Error unpacking transaction: {e}')
+                logger.error(f'[TransactionsLog] - Error unpacking transaction: {e}')
                 return None
         else:
             return None
@@ -208,7 +210,7 @@ class TransactionsLog(commands.Cog):
             self.bot.state.transactions_channel_id = self.bot.state.transactions_channel_id or await self.setup_Transactions()
 
             if self.bot.state.transactions_channel_id is None:
-                print('[TransactionsLog] - No Transactions channel ID found within private_data.json')
+                logger.warning('[TransactionsLog] - No Transactions channel ID found within private_data.json')
                 return False
             else:
                 return True
@@ -219,7 +221,7 @@ class TransactionsLog(commands.Cog):
         """Check for new transactions every 10 minutes."""
         channel_set = await self.verify_transactions_channel()
         if not channel_set:
-            print('[TransactionsLog][Check_Transactions] - Transactions channel not set')
+            logger.warning('[TransactionsLog][Check_Transactions] - Transactions channel not set')
             return
         
         # Load transactions from file
@@ -227,7 +229,7 @@ class TransactionsLog(commands.Cog):
 
         # Get check_if_new_entry
         await self.update_transactions()
-        print('[TransactionsLog] - .. Done')
+        logger.info('[TransactionsLog] - .. Done')
 
 
     ###################################################
@@ -236,7 +238,7 @@ class TransactionsLog(commands.Cog):
 
     @check_transactions.error
     async def check_transactions_error(self,error):
-        print(f'[TransactionsLog][check_transactions] - Error: {error} \n')
+        logger.error(f'[TransactionsLog][check_transactions] - Error: {error} \n')
 
 
     ###################################################
@@ -250,13 +252,13 @@ class TransactionsLog(commands.Cog):
 
         raw_data = data.get('transactions_channel_id')
         if raw_data is None:
-            print('[TransactionLog] - No Transactions channel ID found within private_data.json')
+            logger.warning('[TransactionLog] - No Transactions channel ID found within private_data.json')
             return None
         else:
             try:
                 int(raw_data)
             except ValueError:
-                print('[TransactionsLog] - Invalid Transactions channel ID')
+                logger.error('[TransactionsLog] - Invalid Transactions channel ID')
                 return None
         return int(data.get('transactions_channel_id'))
     
@@ -275,7 +277,7 @@ class TransactionsLog(commands.Cog):
     async def on_ready(self):
         await self.wait_for_fantasy()
         self.check_transactions.start()
-        print('[TransactionsLog] - Ready')
+        logger.info('[TransactionsLog] - Ready')
 
 
     ###################################################
@@ -284,7 +286,7 @@ class TransactionsLog(commands.Cog):
 
     def cog_unload(self):
         self.check_transactions.cancel()
-        print('[TransactionsLog] - Cog Unload')
+        logger.info('[TransactionsLog] - Cog Unload')
 
 
 
