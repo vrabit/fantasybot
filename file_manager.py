@@ -3,9 +3,13 @@ import json
 import aiofiles
 import csv
 import io
+import pickle
 
 from pathlib import Path
 from functools import wraps
+
+import logging
+logger = logging.getLogger(__name__)
 
 current_dir = Path(__file__).parent
 
@@ -16,8 +20,19 @@ def async_load_error_handler(func):
         try:
             return await func(*args, **kwargs)
         except Exception as e:
-            print(f'[FileManager] - Error in {func.__name__}: {e}')
+            logger.error(f'[FileManager] - Error in {func.__name__}: {e}')
             return {}
+    return wrapper
+
+
+def async_load_pickle_error_handler(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f'[FileManager] - Error in {func.__name__}: {e}')
+            return None
     return wrapper
 
 
@@ -114,17 +129,50 @@ class PersistentManager(BaseFileManager):
     def __init__(self):
         super().__init__('persistent_data')  
 
-
 class RecapManager(BaseFileManager):
     def __init__(self):
         super().__init__('recap')
-
 
 class DiscordAuthManager(BaseFileManager):
     def __init__(self):
         super().__init__('discordauth')
 
+class LiveManager(BaseFileManager):
+    def __init__(self):
+        super().__init__('live_data')
+
 
 class TestingManager(BaseFileManager):
     def __init__(self):
         super().__init__('testing_output')
+
+class VaultManager(BaseFileManager):
+    def __init__(self):
+        super().__init__('bet_vault_persistent')
+
+    async def write_pickle(self, filename, data) -> None:
+        raw_path = self._get_raw_path()
+        lock = self._get_lock(filename)
+        thread_lock = self._get_lock('to_thread')
+        path = self._get_path(filename)
+
+        raw_path.mkdir(parents=True, exist_ok=True) # Make sure the directory exists
+
+        async with lock:
+            async with thread_lock:
+                with open(path, 'wb') as file:
+                    await asyncio.to_thread(pickle.dump, data, file)
+
+    @async_load_pickle_error_handler
+    async def load_pickle(self, filename):
+        lock = self._get_lock(filename)
+        thread_lock = self._get_lock('to_thread')
+        path = self._get_path(filename)
+
+        async with lock:
+            if not path.exists():
+                return None
+            async with thread_lock:
+                with open(path, 'rb') as file:
+                    return await asyncio.to_thread(pickle.load, file)
+                
