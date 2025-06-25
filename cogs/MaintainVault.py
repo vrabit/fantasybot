@@ -44,11 +44,14 @@ class MaintainVault(commands.Cog):
         # vault 
         self._vault:Vault = None
         self._initial_bank_funds = 100
+        self._default_wager_amount = 10
 
         # files
         self._members_filename = 'members.json'
         self._vault_accounts_filename = 'vault_accounts.json'
-        self._vault_contracts_filename = 'vault_contracts.json'
+        self._vault_slap_contracts_filename = 'vault_slap_contracts.json'
+        self._vault_wager_contracts_filename = 'vault_wager_contracts.json'
+
 
 
     ###################################################
@@ -166,6 +169,10 @@ class MaintainVault(commands.Cog):
                     entry_1['team_id'] =  team_1_id
                     entry_1['team_opponent_id'] = str(matchup.teams[1].team_id)
                     entry_1['total_points'] = round(matchup.teams[0].team_points.total, 2)
+                    entry_1['week_start'] = matchup.week_start
+                    entry_1['week_end'] = matchup.week_end
+                    entry_1['winner'] = matchup.winner_team_key
+                    entry_1['week'] = matchup.week
                     data_dict[team_1_id] = entry_1
 
                     entry_2 = {}
@@ -173,6 +180,10 @@ class MaintainVault(commands.Cog):
                     entry_2['team_id'] = team_2_id
                     entry_2['team_opponent_id'] = str(matchup.teams[0].team_id)
                     entry_2['total_points'] = round(matchup.teams[1].team_points.total, 2)
+                    entry_2['week_start'] = matchup.week_start
+                    entry_2['week_end'] = matchup.week_end
+                    entry_2['winner'] = matchup.winner_team_key
+                    entry_2['week'] = matchup.week
                     data_dict[team_2_id] = entry_2
                 else:
                     entry = {}
@@ -180,6 +191,10 @@ class MaintainVault(commands.Cog):
                     entry['team_id'] =  team_1_id
                     entry['team_opponent_id'] = None
                     entry['total_points'] = round(matchup.teams[0].team_points, 2)
+                    entry['week_start'] = matchup.week_start
+                    entry['week_end'] = matchup.week_end
+                    entry['winner'] = matchup.winner_team_key
+                    entry['week'] = matchup.week
                     data_dict[team_1_id] = entry
 
             return data_dict
@@ -193,13 +208,40 @@ class MaintainVault(commands.Cog):
         
         if matchups_list is None:
             raise ValueError('match_ups list is None.')
-        
         return await self.format_matchups_to_dict(matchups_list)
 
 
     ###################################################
     # Execute Contracts 
     ###################################################
+
+    async def execute_wager(self, contract:Vault.GroupWagerContract, week_dict:dict[str:Any]):
+        if await contract.empty():
+            return
+        
+        # data
+        matchup_1_dict = week_dict.get(contract.team_1_id)
+        matchup_2_dict = week_dict.get(contract.team_2_id)
+
+        # points
+        team_1_total_points = matchup_1_dict.get('total_points')
+        team_2_total_points = matchup_2_dict.get('total_points')
+        total_points = team_1_total_points + team_2_total_points
+
+        # winner
+        if team_1_total_points > team_2_total_points:
+            winner_id = contract.team_1_id
+        elif team_1_total_points < team_2_total_points:
+            winner_id = contract.team_2_id
+        else:
+            await contract.refund()
+            return
+
+        winner_list = [prediction for prediction in contract.predictions if prediction.prediction_team == winner_id]
+        if winner_list:
+            closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points))
+            await contract.execute_contract(winner=closest_prediction.gambler)
+
 
     async def execute_slap(self, contract:Vault.SlapContract, week_dict:dict[str:Any]):
         challenger_id = str(contract.challenger.fantasy_id)
@@ -214,27 +256,76 @@ class MaintainVault(commands.Cog):
         elif challenger_dict.get('total_points') < challengee_dict.get('total_points'):
             await contract.execute_contract(contract.challengee)
             await self.assign_role(int(contract.challenger.discord_id), self.loser_role_name)   
+        else:
+            await contract.refund()
+        
+        contract.executed = True
         
 
-    async def execute_all_contracts(self):
-        week_dict = None 
+    async def execute_by_contract_type(self, contract_type):
+        CONTRACT_EXECUTORS = {
+            Vault.SlapContract.__name__ : self.execute_slap,
+            Vault.GroupWagerContract.__name__ : self.execute_wager,
+        }
+
         prev_week = None
-        while await self._vault.ready_to_execute():
-            contract = await self._vault.get_next_contract()
+        while await self._vault.ready_to_execute(contract_type=contract_type):
+            contract = await self._vault.get_next_contract(contract_type=contract_type)
             current_week = contract.week
 
-
             if prev_week is None or prev_week != current_week:
-                prev_week = current_week
                 week_dict = await self.get_matchup_data(current_week)
+                prev_week = current_week
 
-            # use contract types appropriately
-            if contract.contract_type == 'SlapContract':
-                await self.execute_slap(contract, week_dict)
-            else:
-                return
-            await self._vault.pop_contract()
+            executor = CONTRACT_EXECUTORS.get(contract_type)
+            if executor is None:
+                raise ValueError("contract_type is invalid.")
+            
+            await executor(contract, week_dict)
+
+            await self._vault.pop_contract(contract_type=contract_type)
             await self.store_all()
+
+    async def execute_all_contracts(self):
+        await self.execute_by_contract_type(contract_type=Vault.SlapContract.__name__)
+        await self.execute_by_contract_type(contract_type=Vault.GroupWagerContract.__name__)
+
+
+    ###################################################
+    # Create Contract Commands        
+    ###################################################
+
+    @app_commands.command(name='wager', description="Place a wager on one of this week's matchups.")
+    @app_commands.describe(discord_user="Player's Discord Tag", points_prediction="Total, 'COMBINED', points at end of matchup.")
+    async def wager(self, interaction:discord.Interaction, discord_user:discord.User, points_prediction:int):
+        await interaction.response.defer(ephemeral=True)
+        if not await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
+            await self.create_current_week_wagers()
+        
+        gambler:Vault.BankAccount = await Vault.bank_account_by_discord_id(str(interaction.user.id))
+        prediction_bank_account:Vault.BankAccount = await Vault.bank_account_by_discord_id(discord_id=str(discord_user.id))
+        wager:Vault.GroupWagerContract = await Vault.get_wager(fantasy_id = prediction_bank_account.fantasy_id)
+
+        if gambler is None:
+            await interaction.followup.send('Your BankAccount was not found.')
+            return
+        
+        if wager is None:
+            await interaction.followup.send('Matchup not found.')
+            return
+        
+        try:
+            await wager.add_prediction(gambler=gambler, prediction_id=prediction_bank_account.fantasy_id, prediction_points=points_prediction, amount = self._default_wager_amount)
+        except Exception as e:
+            message = f"Add predictin failed. Error: {e}"
+            logger.warning(message)
+            await interaction.followup.send(message)
+            return
+        await self.store_all()
+
+        message = f"{interaction.user.mention} successfully placed {self._default_wager_amount} tokens on {prediction_bank_account.discord_tag}."
+        logger.info(message)
+        await interaction.followup.send(message)
 
 
     ###################################################
@@ -290,6 +381,7 @@ class MaintainVault(commands.Cog):
             balance_info = await self._vault.bank_account_info_by_discord_id(str(discord_user.id))
             await interaction.followup.send(f'```{balance_info}```')
 
+
     @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
     @app_commands.command(name='transfer_money', description='Transfer funds to user account')
     @app_commands.describe(discord_user_from="User's Discord Tag to deduct.", discord_user_to="User's Discord Tag to add.", amount="Amount to transfer.")
@@ -298,7 +390,6 @@ class MaintainVault(commands.Cog):
         if not self._ready:
             await interaction.followup.send('Failed startup, try again.')
             return
-
 
         fantasy_id_to = await self._vault.fantasy_id_by_discord_id(str(discord_user_to.id))
         fantasy_id_from = await self._vault.fantasy_id_by_discord_id(str(discord_user_from.id))
@@ -313,11 +404,56 @@ class MaintainVault(commands.Cog):
 
 
     ###################################################
+    # Create this weeks contracts        
+    ###################################################
+
+    async def create_wagers_from_matchup_data(self, data_dict):
+        for key, value in data_dict.items():
+            await Vault.create_contract(
+                team_1_id=value.get('team_id'),
+                team_2_id=value.get('team_opponent_id'),
+                expiration_date=datetime.strptime(value.get('week_end'), '%Y-%m-%d'),
+                week=value.get('week'),
+                amount = self._default_wager_amount,
+                contract_type=Vault.GroupWagerContract.__name__
+            )
+            await self.store_all()
+
+
+    async def check_wager_ready(self) -> bool:
+        if await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
+            logger.info("Last Week's wagers must be executed.")
+            await self.execute_all_contracts()
+        
+        if await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__):
+            logger.info("Current week contracts already created.")
+            return False
+        return True
+
+
+    async def create_current_week_wagers(self):
+        async with self.bot.state.league_lock:
+            league = self.bot.state.league
+        #current_week = league.current_week
+        current_week = 4
+
+        if not await self.check_wager_ready():
+            return
+        
+        data_dict = await self.get_matchup_data(current_week)
+        await self.create_wagers_from_matchup_data(data_dict)
+
+
+    @tasks.loop(minutes=1440)
+    async def update_wagers(self):
+        await self.create_current_week_wagers()
+        
+
+    ###################################################
     # Error Handling         
     ###################################################
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-
         message = ""
         if isinstance(error, app_commands.CommandNotFound):
             message = "This command does not exist."
@@ -374,30 +510,43 @@ class MaintainVault(commands.Cog):
             member = await self.get_member_dict(key)
             value.name = member.get('name')
 
+
+    ####################################################
+    # Load and store accounts/contracts
+    ####################################################
+
     async def store_accounts(self):
         serialized_accounts = await self._vault.serialize_accounts()
         await self._vault_manager.write_json(self._vault_accounts_filename, serialized_accounts)
 
 
     async def store_contracts(self):
-        serialized_contracts = await self._vault.serialize_contracts()
-        await self._vault_manager.write_json(self._vault_contracts_filename, serialized_contracts)
+        serialized_slap_contracts = await self._vault.serialize_contracts(contract_type=Vault.SlapContract.__name__)
+        serialized_wager_contracts = await self._vault.serialize_contracts(contract_type=Vault.GroupWagerContract.__name__)
+        await self._vault_manager.write_json(self._vault_slap_contracts_filename, serialized_slap_contracts)
+        await self._vault_manager.write_json(self._vault_wager_contracts_filename, serialized_wager_contracts)
 
 
     async def store_all(self):
         await self.store_accounts()
         await self.store_contracts()
 
+    async def load_filename(self, filename):
+        data = await self._vault_manager.load_json(filename)
+        if data:
+            return data
+        return None
 
     async def load_all(self) -> Vault:
-        serialized_accounts = await self._vault_manager.load_json(self._vault_accounts_filename)
-        serialized_contracts = await self._vault_manager.load_json(self._vault_contracts_filename)
+        serialized_accounts = await self.load_filename(self._vault_accounts_filename)
+        serialized_slap_contracts = await self.load_filename(self._vault_slap_contracts_filename)
+        serialized_wager_contracts = await self.load_filename(self._vault_wager_contracts_filename)
 
         if not serialized_accounts:
             return None
 
         new_vault = Vault()
-        await new_vault.initialize_from_serialized(serialized_accounts, serialized_contracts)
+        await new_vault.initialize_from_serialized(accounts=serialized_accounts, slap_contracts=serialized_slap_contracts, wager_contracts=serialized_wager_contracts)
         return new_vault
 
 
@@ -443,22 +592,22 @@ class MaintainVault(commands.Cog):
                 amount=10, 
                 expiration_date=expiration, 
                 week=4, 
-                contract_type='SlapContract'
+                contract_type=Vault.SlapContract.__name__
             )
             await self.store_all()
         except Exception as e:
             logger.error(f'[MaintainVault][create_and_store] - Failed to create Contract. Error:{e}')
             
         
-
     @commands.Cog.listener()
     async def on_ready(self): 
         await self.wait_for_fantasy_and_memlist()
         await self.init_vault()
         logger.info('[MaintainVault] - Initialized MaintainVault')
 
+        self.update_wagers.start()
         ## temporary for testing ##
-        await self.create_and_store_contract()
+        #await self.create_and_store_contract()
 
 
     ####################################################

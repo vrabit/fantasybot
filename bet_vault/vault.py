@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, overload
+from typing import Type, overload, Optional
 from functools import wraps
 from collections import deque
 from datetime import datetime, date
@@ -56,14 +56,6 @@ class Vault():
                 f'executed={self.executed}\n'
                 ')'
             )
-
-        @property
-        def challenger(self):
-            return self._challenger
-        
-        @property
-        def challengee(self):
-            return self._challengee
         
         @property
         def executed(self):
@@ -200,6 +192,10 @@ class Vault():
                 winner.money += self.winnings
             self.executed = True
 
+        async def refund(self):
+            self.challenger.money += self.amount
+            self.challengee.money += self.amount
+            self.executed = True
 
     class GroupWagerContract(Contract):
         class Prediction():
@@ -300,7 +296,12 @@ class Vault():
         def __eq__(self, value):
             if not isinstance(value,Vault.GroupWagerContract):
                 return False
-            return {value.team_1_id, value.team_2_id} == {self.team_1_id, self.team_2_id}
+            return {value.team_1_id, value.team_2_id} == {self.team_1_id, self.team_2_id} and value.expiration == self.expiration
+
+        async def empty(self): 
+            if len(self.predictions) <= 0:
+                return True
+            return False
 
         async def found(self, id:int):
             if self._team_1_id == id or self._team_2_id == id:
@@ -313,6 +314,12 @@ class Vault():
                     return True
             return False
         
+        async def points_prediction_exists(self, team_id:str, points:int):
+            for prediction in self.predictions:
+                if prediction.prediction_team == team_id and prediction.prediction_points == points:
+                    return True
+            return False
+
         async def add_prediction(self, gambler:Vault.BankAccount, prediction_id:str, prediction_points:int, amount):
             if not isinstance(gambler, Vault.BankAccount):
                 raise TypeError('Predictions expect type Vault.BankAccount')
@@ -320,9 +327,10 @@ class Vault():
                 raise ValueError('Not enough Funds within the gambler account.')
             if await self.prediction_exists(gambler):
                 raise ValueError('Duplicates are not allowed.')
+            if await self.points_prediction_exists(team_id=prediction_id, points=prediction_points):
+                raise ValueError('Point predictions must be unique per team.')
+            
             new_prediction = self.Prediction(gambler=gambler, prediction_team=prediction_id, prediction_points=prediction_points)
-
-
             self.predictions.append(new_prediction)
             self._amount += amount
             gambler.money -= amount
@@ -361,7 +369,8 @@ class Vault():
         async def construct_serialized_list(self):
             predictions_list = []
             for entry in self.predictions:
-                predictions_list.append(entry.serialize())
+                serialized = await entry.serialize()
+                predictions_list.append(serialized)
             return predictions_list
 
         async def serialize(self):
@@ -395,6 +404,11 @@ class Vault():
                 raise ValueError(f'Invalid winner account.')
             else:
                 winner.money += self.winnings
+            self.executed = True
+
+        async def refund(self):
+            for prediction in self.predictions:
+                prediction.gambler.money += self.amount
             self.executed = True
 
 
@@ -519,6 +533,10 @@ class Vault():
     async def pop_contract(cls, contract_type):
         return cls.contracts.get(contract_type).popleft()
 
+    @classmethod
+    @validate_contract_type(CONTRACT_REGISTRY)
+    async def get_contract_deque(cls, contract_type):
+        return cls.contracts.get(contract_type)
 
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
@@ -550,16 +568,23 @@ class Vault():
         return Vault.GroupWagerContract(team_1_id=team_1_id, team_2_id=team_2_id, expiration_date=expiration_date, week=week, amount=amount, executed=False)
 
     @classmethod
-    async def wager_exists(cls, id:str) -> bool:
+    async def wager_exists(cls, contract:Vault.GroupWagerContract):
+        for entry in cls.contracts.get(Vault.GroupWagerContract.__name__):
+            if entry == contract:
+                return True
+        return False
+
+    @classmethod
+    async def wager_by_id_exists(cls, id:str) -> bool:
         for entry in cls.contracts.get(Vault.GroupWagerContract.__name__):
             if await entry.found(id=id):
                 return True
         return False
     
     @classmethod
-    async def get_wager(cls, id:str) -> Vault.GroupWagerContract:
+    async def get_wager(cls, fantasy_id:str) -> Vault.GroupWagerContract:
         for entry in cls.contracts.get(Vault.GroupWagerContract.__name__):
-            if await entry.found(id=id):
+            if await entry.found(id=fantasy_id):
                 return entry
         return None
 
@@ -574,26 +599,23 @@ class Vault():
 
     @overload
     @classmethod
-    async def create_contract(cls, team_1_id:str, team_2_id:str, expiration_date:datetime, week:int, amount:int, executed:bool): ...
+    async def create_contract(cls, team_1_id:str, team_2_id:str, expiration_date:datetime, week:int, amount:int, contract_type:str, executed:bool=False): ...
 
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
     async def create_contract(cls, *args, **kwargs):
-        contract_type = kwargs.pop('contract_type', None)
-        
-        if contract_type is None:
-            logger.warning('Unable to create contract. Contract missing contract_type key.')
-            return
+        contract_type = kwargs.pop('contract_type')
 
         if contract_type == Vault.SlapContract.__name__:
             contract = await cls.create_slap_contract(**kwargs)
             cls.contracts.get(Vault.SlapContract.__name__).append(contract)
         elif contract_type == Vault.GroupWagerContract.__name__:
             contract = await cls.create_wager_contract(**kwargs)
-            cls.contracts.get(Vault.GroupWagerContract.__name__).append(contract)
+            if not await cls.wager_exists(contract=contract):
+                cls.contracts.get(Vault.GroupWagerContract.__name__).append(contract)
         else:
-            return
-
+            return None
+        return contract
 
     ###################################################################
     # Bank Account utility
@@ -608,17 +630,24 @@ class Vault():
         return account_list
 
     @classmethod
-    async def fantasy_id_by_discord_id(cls, discord_id):
+    async def fantasy_id_by_discord_id(cls, discord_id) -> str:
         for key, value in cls.accounts.items():
             if value.discord_id == discord_id:
                 return key
         return None
 
     @classmethod
-    async def bank_account_info_by_discord_id(cls, discord_id):
+    async def bank_account_info_by_discord_id(cls, discord_id) -> Optional[str]:
         for key, value in cls.accounts.items():
             if value.discord_id == discord_id:
                 return str(value)
+        return None
+
+    @classmethod
+    async def bank_account_by_discord_id(cls, discord_id) -> Vault.BankAccount:
+        for key, value in cls.accounts.items():
+            if value.discord_id == discord_id:
+                return value
         return None
 
     @classmethod
@@ -677,30 +706,34 @@ class Vault():
 
 
     @classmethod
-    async def initialize(cls, accounts: dict[str, BankAccount] = {}, slap_contracts: deque[SlapContract] = deque(), wager_contracts: deque[GroupWagerContract] = deque()):
+    async def initialize(cls, accounts: dict[str, BankAccount] = None, slap_contracts: deque[SlapContract] = None, wager_contracts: deque[GroupWagerContract] = None):
        
-        if not isinstance(accounts, dict):
-            raise TypeError("Expected a dict of accounts.")
+        if accounts is not None:
+            if not isinstance(accounts, dict):
+                raise TypeError("Expected a dict of accounts.")
 
-        # Optionally check the contents
-        for key, value in accounts.items():
-            if not isinstance(key, str) or not isinstance(value, Vault.BankAccount):
-                raise TypeError("accounts must be of type dict[str, BankAccount]")
-            
-        if not isinstance(slap_contracts,deque):
-            raise TypeError("Expected deque of Contract")
+            for key, value in accounts.items():
+                if not isinstance(key, str) or not isinstance(value, Vault.BankAccount):
+                    raise TypeError("Accounts must be of type dict[str, BankAccount]")
+                
+        if slap_contracts is not None:
+            if not isinstance(slap_contracts,deque) :
+                raise TypeError(f"Expected deque of {Vault.SlapContract.__name__}")
 
-        for elements in slap_contracts:
-            if not isinstance(elements,Vault.SlapContract):
-                raise TypeError(f"contracts must be of type {Vault.SlapContract.__name__}")
+            for elements in slap_contracts:
+                if not isinstance(elements,Vault.SlapContract):
+                    raise TypeError(f"Contracts must be of type {Vault.SlapContract.__name__}")
             
-        for elements in wager_contracts:
-            if not isinstance(elements,Vault.GroupWagerContract):
-                raise TypeError(f"contracts must be of type {Vault.GroupWagerContract.__name__}")
+        if wager_contracts is not None:
+            if not isinstance(wager_contracts,Vault.GroupWagerContract):
+                raise ValueError(f"Expected deque of {Vault.GroupWagerContract.__name__}")
+            for elements in wager_contracts:
+                if not isinstance(elements,Vault.GroupWagerContract):
+                    raise TypeError(f"Contracts must be of type {Vault.GroupWagerContract.__name__}")
             
-        cls.accounts = accounts
-        cls.contracts[Vault.SlapContract.__name__] = slap_contracts
-        cls.contracts[Vault.GroupWagerContract.__name__] = wager_contracts
+        cls.accounts = accounts or {}
+        cls.contracts[Vault.SlapContract.__name__] = slap_contracts or deque()
+        cls.contracts[Vault.GroupWagerContract.__name__] = wager_contracts or deque()
 
 
     @staticmethod

@@ -240,6 +240,9 @@ async def setup_hook():
     await load_extensions()
 
 
+def main():
+    bot.setup_hook = setup_hook
+    bot.run(token)
 
-bot.setup_hook = setup_hook
-bot.run(token)
+if __name__ == '__main__':
+    main()

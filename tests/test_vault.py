@@ -86,7 +86,6 @@ async def setup_vault_accounts_and_slap_contracts():
 @pytest.fixture 
 async def setup_vault_accounts_and_wager_contracts():
     accounts_dict = {}
-    contracts_deque = deque()
     account1 = Vault.BankAccount(name='banana', discord_tag='<@59729789855555555>', discord_id='59729789855555555', fantasy_id='3', money=100)
     account2 = Vault.BankAccount(name='pesado', discord_tag='<@95444595755555555>', discord_id='95444595755555555', fantasy_id='4', money=100)
     account3 = Vault.BankAccount(name='taco', discord_tag='<@95648312555555555>', discord_id='95648312555555555', fantasy_id='5', money=100)
@@ -123,6 +122,58 @@ async def setup_vault_accounts_and_wager_contracts():
     await Vault.create_contract(team_1_id='1', team_2_id='2', expiration_date=yesterday, week=5, contract_type=Vault.GroupWagerContract.__name__)
     await Vault.create_contract(team_1_id='3', team_2_id='4', expiration_date=yesterday, week=5, contract_type=Vault.GroupWagerContract.__name__)
     await Vault.create_contract(team_1_id='5', team_2_id='6', expiration_date=yesterday, week=5, contract_type=Vault.GroupWagerContract.__name__)
+
+@pytest.fixture 
+async def setup_vault_accounts_and_wager_contracts_with_predictions():
+    accounts_dict = {}
+    account1 = Vault.BankAccount(name='banana', discord_tag='<@59729789855555555>', discord_id='59729789855555555', fantasy_id='3', money=100)
+    account2 = Vault.BankAccount(name='pesado', discord_tag='<@95444595755555555>', discord_id='95444595755555555', fantasy_id='4', money=100)
+    account3 = Vault.BankAccount(name='taco', discord_tag='<@95648312555555555>', discord_id='95648312555555555', fantasy_id='5', money=100)
+    accounts_dict[account1.fantasy_id] = account1
+    accounts_dict[account2.fantasy_id] = account2
+    accounts_dict[account3.fantasy_id] = account3
+
+    await Vault.initialize(accounts_dict)
+
+    yesterday = datetime.today() - timedelta(days = 1)
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+
+    # slaps
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account2.fantasy_id, 
+        amount = 10, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account3.fantasy_id, 
+        amount = 10, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )   
+
+    # wagers
+    wager_1:Vault.GroupWagerContract = await Vault.create_contract(team_1_id='1', team_2_id='2', expiration_date=yesterday, week=5, contract_type=Vault.GroupWagerContract.__name__)
+    wager_2:Vault.GroupWagerContract  = await Vault.create_contract(team_1_id='3', team_2_id='4', expiration_date=yesterday, week=5, contract_type=Vault.GroupWagerContract.__name__)
+    wager_3:Vault.GroupWagerContract  = await Vault.create_contract(team_1_id='5', team_2_id='6', expiration_date=yesterday, week=5, contract_type=Vault.GroupWagerContract.__name__)
+
+    await wager_1.add_prediction(gambler= account1, prediction_id='1', prediction_points=60, amount=10)
+    await wager_1.add_prediction(gambler= account2, prediction_id='2', prediction_points=65, amount=10)
+    await wager_1.add_prediction(gambler= account3, prediction_id='1', prediction_points=55, amount=10)
+
+    await wager_2.add_prediction(gambler=account1, prediction_id='3', prediction_points=40, amount=10)
+    await wager_2.add_prediction(gambler=account2, prediction_id='4', prediction_points=30, amount=10)
+    await wager_2.add_prediction(gambler=account3, prediction_id='3', prediction_points=48, amount=10)
+
+    await wager_3.add_prediction(gambler=account1, prediction_id='6', prediction_points=40, amount=10)
+    await wager_3.add_prediction(gambler=account2, prediction_id='5', prediction_points=30, amount=10)
+    await wager_3.add_prediction(gambler=account3, prediction_id='5', prediction_points=48, amount=10)
 
 
 #############################################################################
@@ -272,6 +323,7 @@ async def test_slap_contract_initialization(setup_accounts):
     assert contract.amount == 100 
     assert contract._new == True
 
+
 @pytest.mark.asyncio
 @pytest.mark.slap_contract
 async def test_contract_initialization_insufficient_funds(setup_accounts):
@@ -280,6 +332,7 @@ async def test_contract_initialization_insufficient_funds(setup_accounts):
     
     with pytest.raises(ValueError):
         contract = Vault.SlapContract(challenger=account1, challengee=account2, amount = 101, expiration_date=date_today, week=4)
+
 
 @pytest.mark.asyncio
 @pytest.mark.slap_contract
@@ -320,6 +373,7 @@ async def test_execute_slap_contract_success(setup_vault_accounts):
     assert account2.money == 50
     assert contract.executed == True
 
+
 @pytest.mark.asyncio
 @pytest.mark.slap_contract
 async def test_def_create_contract_slap(setup_vault_accounts):
@@ -339,6 +393,7 @@ async def test_def_create_contract_slap(setup_vault_accounts):
     assert account2.money == 50
     contracts_length = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
     assert contracts_length == 1
+
 
 @pytest.mark.asyncio
 @pytest.mark.slap_contract
@@ -369,6 +424,7 @@ async def test_def_create_contract_slap_multiple(setup_vault_accounts):
     assert account3.money == 50
     contracts_length = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
     assert contracts_length == 2
+
 
 @pytest.mark.asyncio
 @pytest.mark.slap_contract
@@ -417,6 +473,7 @@ async def test_slap_multiple_execution(setup_vault_accounts):
     contract_length = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
     assert contract_length == 0
 
+
 @pytest.mark.asyncio
 @pytest.mark.slap_contract
 async def test_slap_load_store_accounts_serialized(setup_vault_accounts):
@@ -452,6 +509,7 @@ async def test_slap_load_store_accounts_serialized(setup_vault_accounts):
     assert account3.discord_id == '95648312555555555'
     assert account3.fantasy_id == '5'
     assert account3.money == 100
+
 
 @pytest.mark.asyncio
 @pytest.mark.slap_contract
@@ -510,6 +568,7 @@ async def test_group_simple_wager_contract(setup_vault_accounts):
     with pytest.raises(ValueError):
         await wager.execute_contract(gambler_acc)
 
+
 @pytest.mark.asyncio
 @pytest.mark.group_wager_contract
 async def test_group_wager_contract_duplicate(setup_vault_accounts):
@@ -527,15 +586,16 @@ async def test_group_wager_contract_duplicate(setup_vault_accounts):
     with pytest.raises(ValueError):
         await wager.add_prediction(gambler=gambler_acc_1, prediction_id='2', prediction_points=70, amount=5)
 
+
 @pytest.mark.asyncio
 @pytest.mark.group_wager_contract
 async def test_group_wager_interface(setup_vault_accounts):
     yesterday = datetime.today() - timedelta(days = 1)
-    exists = await Vault.wager_exists(id='8')
+    exists = await Vault.wager_by_id_exists(id='8')
     assert exists == False
 
     await Vault.create_contract(team_1_id='8', team_2_id='9', expiration_date=yesterday, week=4, contract_type=Vault.GroupWagerContract.__name__)
-    exists = await Vault.wager_exists(id='8')
+    exists = await Vault.wager_by_id_exists(id='8')
     assert exists == True
 
     slap_contracts_len = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
@@ -554,7 +614,7 @@ async def test_group_wager_interface(setup_vault_accounts):
     acc_1 = Vault.accounts.get('3')
     acc_2 = Vault.accounts.get('4')
     await next_wager.add_prediction(gambler=acc_1, prediction_id='8', prediction_points=60, amount=5)
-    await next_wager.add_prediction(gambler=acc_2, prediction_id='8', prediction_points=60, amount=5)
+    await next_wager.add_prediction(gambler=acc_2, prediction_id='8', prediction_points=61, amount=5)
     assert next_wager.amount == 10
 
     with pytest.raises(ValueError):
@@ -570,8 +630,13 @@ async def test_group_wager_execution(setup_vault_accounts):
     wager = await Vault.get_wager(id='8')
     acc_1 = Vault.accounts.get('3')
     acc_2 = Vault.accounts.get('4')
+    acc_3 = Vault.accounts.get('5')
     await wager.add_prediction(gambler=acc_1, prediction_id='8', prediction_points=60, amount=5)
     await wager.add_prediction(gambler=acc_2, prediction_id='9', prediction_points=60, amount=5)
+    with pytest.raises(ValueError):
+        await wager.add_prediction(gambler=acc_3, prediction_id='8', prediction_points=60, amount = 5)
+    with pytest.raises(ValueError):
+        await wager.add_prediction(gambler=acc_3, prediction_id='9', prediction_points=60, amount = 5)
 
     assert acc_1.money == 95
     assert acc_2.money == 95
@@ -590,9 +655,16 @@ async def test_group_wager_execution(setup_vault_accounts):
     len_contracts = await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__) 
     assert len_contracts == 0
 
+
 @pytest.mark.asyncio
 @pytest.mark.general
 async def test_load_and_store(setup_vault_accounts_and_wager_contracts):
+    found = await Vault.wager_by_id_exists('3')
+    not_found = await Vault.wager_by_id_exists('20')
+    assert found == True
+    assert not_found == False
+    assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 2
+    assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 3
 
     serialized_accounts = await Vault.serialize_accounts()
     serialized_slap_contracts = await Vault.serialize_contracts(contract_type=Vault.SlapContract.__name__)
@@ -602,25 +674,19 @@ async def test_load_and_store(setup_vault_accounts_and_wager_contracts):
     account2 = Vault.accounts.get('4')
     account3 = Vault.accounts.get('5')
 
-    slap_1 = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
-    await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
-    slap_2 = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
-    await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
-    ready_to_execute = await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__)
-    assert ready_to_execute == False
-
+    slap_1 = Vault.contracts.get(Vault.SlapContract.__name__)[0]
+    slap_2 = Vault.contracts.get(Vault.SlapContract.__name__)[1]
+    
     wager_1 = await Vault.get_wager('1')
     wager_2 = await Vault.get_wager('4')
     wager_3 = await Vault.get_wager('5')
 
-
-    print(serialized_accounts)
-    print(serialized_slap_contracts)
-    print(serialized_wager_contracts)
-
-    empty_dict = {}
+    print(Vault.contracts)
     await Vault.initialize() #clear
+    print(Vault.contracts)
 
+    assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 0
+    assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 0
     await Vault.initialize_from_serialized(accounts=serialized_accounts, slap_contracts=serialized_slap_contracts, wager_contracts=serialized_wager_contracts)
 
     loaded_account1 = Vault.accounts.get('3')
@@ -628,9 +694,86 @@ async def test_load_and_store(setup_vault_accounts_and_wager_contracts):
     loaded_account3 = Vault.accounts.get('5')
     
     assert account1 == loaded_account1
+    assert account1.money == loaded_account1.money
     assert account2 == loaded_account2
+    assert account2.money == loaded_account2.money
     assert account3 == loaded_account3
+    assert account3.money == loaded_account3.money
 
-    loaded_slap_1 = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+    slap_contracts = await Vault.get_contract_deque(contract_type=Vault.SlapContract.__name__)
+    assert slap_contracts[0] == slap_1
+    assert slap_contracts[1] == slap_2
+
+    loaded_slap_1:Vault.SlapContract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+    await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
+    assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 1
+    loaded_slap_2 = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+    await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
+    assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 0
+    slaps_len = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+
     assert slap_1 == loaded_slap_1
+    assert slap_2 == loaded_slap_2
+    assert slaps_len == 0
+
+    wager_contracts = await Vault.get_contract_deque(contract_type=Vault.GroupWagerContract.__name__)
+    assert wager_contracts[0] == wager_1
+    assert wager_contracts[1] == wager_2
+    assert wager_contracts[2] == wager_3
+    
+    loaded_wager_1 = await Vault.get_next_contract(contract_type=Vault.GroupWagerContract.__name__)
+    await Vault.pop_contract(contract_type=Vault.GroupWagerContract.__name__)
+    assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 2
+    loaded_wager_2 = await Vault.get_next_contract(contract_type=Vault.GroupWagerContract.__name__)
+    await Vault.pop_contract(contract_type=Vault.GroupWagerContract.__name__)
+    assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 1
+    loaded_wager_3 = await Vault.get_next_contract(contract_type=Vault.GroupWagerContract.__name__)
+    await Vault.pop_contract(contract_type=Vault.GroupWagerContract.__name__)
+    assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 0
+    wager_len = await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__)
+    
+    assert wager_1 == loaded_wager_1
+    assert wager_2 == loaded_wager_2
+    assert wager_3 == loaded_wager_3
+    assert wager_len == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.general
+async def test_execute_all_contracts(setup_vault_accounts_and_wager_contracts_with_predictions):
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+
+    assert account1.money == 50
+    assert account2.money == 60
+    assert account2.money == 60
+
+    slap_len_before = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+    while await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__):
+        contract:Vault.SlapContract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+        await contract.execute_contract(winner=contract.challengee)
+        await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
+    
+    slap_len_after = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
+    assert slap_len_before == 2
+    assert slap_len_after == 0
+
+    assert account1.money == 50
+    assert account2.money == 80
+    assert account3.money == 80
+
+    wager_len_before = await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__)
+    while await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
+        contract:Vault.GroupWagerContract = await Vault.get_next_contract(contract_type=Vault.GroupWagerContract.__name__)
+        await contract.execute_contract(winner=account2)
+        await Vault.pop_contract(contract_type=Vault.GroupWagerContract.__name__)
+
+    wager_len_after = await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__)
+    assert wager_len_before == 3
+    assert wager_len_after == 0
+
+    assert account1.money == 50
+    assert account2.money == 170
+    assert account3.money == 80
 
