@@ -102,7 +102,7 @@ class Vault():
 
 
     class SlapContract(Contract):
-        def __init__(self,challenger, challengee, amount, expiration_date, week:int, executed:bool=False, new:bool = True):
+        def __init__(self,challenger:Vault.BankAccount, challengee:Vault.BankAccount, amount:int, expiration_date:datetime, week:int, executed:bool=False, new:bool = True):
             super().__init__(amount, expiration_date, week, executed, new)
 
             if not isinstance(challenger, Vault.BankAccount) or not isinstance(challengee, Vault.BankAccount):
@@ -361,7 +361,8 @@ class Vault():
             new_deque = deque()
             serialized_predictions_list = serialized_contract.get('predictions')
             for prediction in serialized_predictions_list:
-                new_deque.append(cls.Prediction.prediction_from_serialized(prediction))
+                new_prediction = await cls.Prediction.prediction_from_serialized(prediction)
+                new_deque.append(new_prediction)
 
             await contract.init_contract_deque(new_deque)
             return contract
@@ -402,8 +403,8 @@ class Vault():
 
             if not await self.account_in_deque(winner):
                 raise ValueError(f'Invalid winner account.')
-            else:
-                winner.money += self.winnings
+
+            winner.money += self.winnings
             self.executed = True
 
         async def refund(self):
@@ -697,13 +698,6 @@ class Vault():
     ###################################################################
     # Maintain contracts
     ###################################################################
-
-    @classmethod
-    async def add_contract(cls, contract:Contract):
-        if not isinstance(contract, Vault.Contract):
-            raise ValueError('Expected instance of Vault.Contract.')
-        cls.contracts.append(contract)
-
 
     @classmethod
     async def initialize(cls, accounts: dict[str, BankAccount] = None, slap_contracts: deque[SlapContract] = None, wager_contracts: deque[GroupWagerContract] = None):

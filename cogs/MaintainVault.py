@@ -45,6 +45,7 @@ class MaintainVault(commands.Cog):
         self._vault:Vault = None
         self._initial_bank_funds = 100
         self._default_wager_amount = 10
+        self._default_wager_bonus = 0
 
         # files
         self._members_filename = 'members.json'
@@ -106,7 +107,6 @@ class MaintainVault(commands.Cog):
             except Exception as e:
                 logger.error(f'[MaintainVault][get_member_by_id] - Error:{e}')
                 return None
-
         return member
 
 
@@ -122,7 +122,6 @@ class MaintainVault(commands.Cog):
         if role is None:
             await self.create_role(guild, self.loser_role_name, self.gold_color)
         
-
         member = await self.get_member_by_id(guild, int(discord_member_id))
         if member is None:
             logger.warning('[MaintainVault][assign_role] - Failed to fetch discord member from discord_id.')
@@ -217,8 +216,12 @@ class MaintainVault(commands.Cog):
 
     async def execute_wager(self, contract:Vault.GroupWagerContract, week_dict:dict[str:Any]):
         if await contract.empty():
+            logger.info('[MaintainVault] - No Predictions to account to parse.')
+            contract.executed = True
             return
-        
+        logger.info('[MaintainVault][execute_wager] - Evaluating Wager Winner.')
+
+
         # data
         matchup_1_dict = week_dict.get(contract.team_1_id)
         matchup_2_dict = week_dict.get(contract.team_2_id)
@@ -234,12 +237,15 @@ class MaintainVault(commands.Cog):
         elif team_1_total_points < team_2_total_points:
             winner_id = contract.team_2_id
         else:
+            logger.info(f'[MaintainVault][execute_wager] - Tie: Refunding {contract.team_1_id}-{contract.team_2_id} matchup.')
             await contract.refund()
             return
 
         winner_list = [prediction for prediction in contract.predictions if prediction.prediction_team == winner_id]
+        print(winner_list)
         if winner_list:
-            closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points))
+            closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points)) #copy
+            logger.info(f'[MaintainVault][execute_wager] - Team {closest_prediction.gambler.discord_tag} wins {contract.winnings} tokens.')
             await contract.execute_contract(winner=closest_prediction.gambler)
 
 
@@ -287,6 +293,7 @@ class MaintainVault(commands.Cog):
             await self.store_all()
 
     async def execute_all_contracts(self):
+        logger.info("[MaintainVault] - Executing all Conracts")
         await self.execute_by_contract_type(contract_type=Vault.SlapContract.__name__)
         await self.execute_by_contract_type(contract_type=Vault.GroupWagerContract.__name__)
 
@@ -414,7 +421,7 @@ class MaintainVault(commands.Cog):
                 team_2_id=value.get('team_opponent_id'),
                 expiration_date=datetime.strptime(value.get('week_end'), '%Y-%m-%d'),
                 week=value.get('week'),
-                amount = self._default_wager_amount,
+                amount = self._default_wager_bonus,
                 contract_type=Vault.GroupWagerContract.__name__
             )
             await self.store_all()
@@ -434,8 +441,7 @@ class MaintainVault(commands.Cog):
     async def create_current_week_wagers(self):
         async with self.bot.state.league_lock:
             league = self.bot.state.league
-        #current_week = league.current_week
-        current_week = 4
+        current_week = league.current_week
 
         if not await self.check_wager_ready():
             return
@@ -452,6 +458,10 @@ class MaintainVault(commands.Cog):
     ###################################################
     # Error Handling         
     ###################################################
+
+    @update_wagers.error
+    async def update_wagers_error(self,error):
+        logger.error(f'[MaintainVault][update_wagers] - Error: {error}')
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         message = ""

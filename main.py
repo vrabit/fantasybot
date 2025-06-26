@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 ###################################################
 
 # Load environment variables from .env files
+load_dotenv(current_dir / 'yfpyauth' / '.env')
 load_dotenv(current_dir / 'yfpyauth' / ".env.config")
 load_dotenv(current_dir / 'yfpyauth' / '.env.private')
 load_dotenv(current_dir / 'discordauth' / '.env.discord')
@@ -102,8 +103,6 @@ class BotState:
 
         # shared vault 
         self.vault:Vault = None
-
-
 
 bot.state = BotState(guild_id=guild_id, guild=guild)
 

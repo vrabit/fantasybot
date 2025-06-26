@@ -225,7 +225,7 @@ class FantasyQuery(commands.Cog):
                     member = await interaction.guild.fetch_member(int(discord_user))
                 except Exception as e:
                     logger.error(f'[FantasyQuery][construct_chump_champ] - Error: {e}')
-                    interaction.followup.send(f'Failed to Construct Player Profile.')
+                    await interaction.followup.send(f'Failed to Construct Player Profile.')
                     return
 
             if discord_user is not None:
