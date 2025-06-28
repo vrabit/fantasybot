@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 class MaintainFantasy(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
-        logger = logging.getLogger(__name__)
 
         self._first_run = True
         self._ready = False
@@ -34,14 +33,6 @@ class MaintainFantasy(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def token_expiration(self):
-        if self._first_run:
-            logger.info("Initializing Fantasy Object")
-            await self.refresh_fantasy()
-            load_dotenv(self.parent_dir / 'yfpyauth' / '.env', override=True)
-            self._first_run = False
-            logger.info(f"[MaintainFantasy] - {time_remaining}")
-            return
-
         timestamp = float(os.getenv('YAHOO_TOKEN_TIME', 0))
         issued_utc = datetime.fromtimestamp(timestamp=timestamp, tz=ZoneInfo('UTC'))
         now_utc = datetime.now(tz=ZoneInfo("UTC"))
@@ -49,6 +40,14 @@ class MaintainFantasy(commands.Cog):
         delta = (now_utc - issued_utc).total_seconds() 
         time_remaining = 3600 - delta 
         print(f"[MaintainFantasy] - {time_remaining}")
+
+        if self._first_run:
+            logger.info("Initializing Fantasy Object")
+            await self.refresh_fantasy()
+            load_dotenv(self.parent_dir / 'yfpyauth' / '.env', override=True)
+            self._first_run = False
+            logger.info(f"[MaintainFantasy] - {time_remaining}")
+            return
 
         if time_remaining < 60: 
             if time_remaining >= 0:
