@@ -734,9 +734,7 @@ async def test_load_and_store(setup_vault_accounts_and_wager_contracts):
     wager_2 = await Vault.get_wager('4')
     wager_3 = await Vault.get_wager('5')
 
-    print(Vault.contracts)
     await Vault.initialize() #clear
-    print(Vault.contracts)
 
     assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 0
     assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 0
