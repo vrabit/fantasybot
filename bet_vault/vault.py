@@ -24,6 +24,11 @@ def validate_contract_type(registry):
         return wrapper
     return decorator
 
+
+###################################################################
+# Vault
+###################################################################
+
 class Vault():
 
     ###################################################################
@@ -57,49 +62,64 @@ class Vault():
                 ')'
             )
         
+
         @property
         def executed(self):
             return self._executed
         
+
         @property
         def expiration(self):
             return self._expiration
         
+
         @property
         def week(self):
             return self._week
         
+
         @executed.setter
         def executed(self, value):
             if not isinstance(value, bool):
                 raise ValueError('Boolean expected.')
             self._executed = value
 
+
         @property
         def amount(self):
             return self._amount 
                
+
         @property
         def winnings(self):
             raise NotImplementedError
+
 
         @property
         def contract_type(self):
             return self._contract_type
         
+
         @classmethod
         async def contract_from_serialized(cls, serialized_contract):
             raise NotImplementedError
 
+
         async def serialize(self):
             raise NotImplementedError
+
 
         async def should_execute(self):
             return datetime.today() > self.expiration
 
+
         async def execute_contract(self):
             raise NotImplementedError
 
+
+    ###################################################################
+    # SlapContract
+    ###################################################################
 
     class SlapContract(Contract):
         def __init__(self,challenger:Vault.BankAccount, challengee:Vault.BankAccount, amount:int, expiration_date:datetime, week:int, executed:bool=False, new:bool = True):
@@ -123,13 +143,16 @@ class Vault():
         def challenger(self):
             return self._challenger
         
+
         @property
         def challengee(self):
             return self._challengee
         
+
         @property
         def winnings(self):
             return self._amount * 2
+
 
         def __str__(self):
             return(
@@ -143,10 +166,12 @@ class Vault():
                 ')'
             )
         
+
         def __eq__(self, value):
             if not isinstance(value, Vault.SlapContract):
                 raise TypeError(f'Expected {self.__class__.__name__}')
             return {self.challenger, self.challengee} == {value.challenger, value.challengee}
+
 
         @classmethod
         async def contract_from_serialized(cls:Type[Vault.SlapContract], serialized_contract:dict):
@@ -165,6 +190,7 @@ class Vault():
             
             return cls(challenger, challengee, amount, expiration, week, executed, False)
 
+
         async def serialize(self):
             entry = {}
             entry['challenger'] = await self.challenger.serialize()
@@ -175,6 +201,7 @@ class Vault():
             entry['amount'] = self._amount
             entry['type'] = str(self.contract_type)
             return entry
+
 
         async def execute_contract(self, winner:Vault.BankAccount):
             if self.executed:
@@ -192,18 +219,25 @@ class Vault():
                 winner.money += self.winnings
             self.executed = True
 
+
         async def refund(self):
             self.challenger.money += self.amount
             self.challengee.money += self.amount
             self.executed = True
 
+
+    ###################################################################
+    # GroupWagerContract
+    ###################################################################
+
     class GroupWagerContract(Contract):
         class Prediction():
             def __init__(self, gambler:Vault.BankAccount, prediction_team:str, prediction_points:int):
-                self.gambler = gambler
+                self.gambler:Vault.BankAccount = gambler
                 self.prediction_team = prediction_team
                 self.prediction_points = prediction_points
-            
+
+
             @classmethod
             async def prediction_from_serialized(cls:Type[Vault.GroupWagerContract.Prediction], serialized_prediction):
                 gambler_dict = serialized_prediction.get('gambler')
@@ -214,12 +248,14 @@ class Vault():
                 prediction_points = serialized_prediction.get('prediction_points')
                 return cls(gambler, prediction_team, prediction_points)
 
+
             async def serialize(self):
                 entry = {}
                 entry['gambler'] = await self.gambler.serialize()
                 entry['prediction_team'] = self.prediction_team
                 entry['prediction_points'] = self.prediction_points
                 return entry
+
 
             def __str__(self):
                 return(
@@ -229,11 +265,13 @@ class Vault():
                     f'prediction_points={self.prediction_points}\n'
                     ')'
                 )
-            
+
+
             def __eq__(self, value):
                 if not isinstance(value,Vault.GroupWagerContract.Prediction):
                     return False
                 return value.gambler == self.gambler
+
 
         def __init__(
             self, team_1_id:str, team_2_id:str, 
@@ -243,40 +281,50 @@ class Vault():
             if not isinstance(team_1_id,str) or not isinstance(team_2_id,str):
                 raise TypeError('Invalid team_id type.')
             if team_1_id == team_2_id:
-                raise ValueError('Both id\'s must be unique.')
+                raise ValueError("Both id's must be unique.")
 
             self._contract_type = self.__class__.__name__
             self._team_1_id = team_1_id
             self._team_2_id = team_2_id
             self._amount:int = amount
+            self._bonus:int = amount
             self._predictions_deque:deque[Vault.GroupWagerContract.Prediction] = deque()
 
 
         @property
         def team_1_id(self):
             return self._team_1_id
-        
+
+
         @property
         def team_2_id(self):
             return self._team_2_id
-        
+
+
         @property
         def predictions(self):
             return self._predictions_deque
         
         @property
+        def bonus(self):
+            return self._bonus
+
+        @property
         def winnings(self):
             return self.amount
         
+
         @predictions.setter
         def predictions(self, result):
             if not isinstance(result, deque):
                 raise TypeError('Prediction expects a deque.')
             self._predictions_deque = result
 
+
         def predictions_str(self):
             predict_string = '\n'.join(f'{prediction}' for prediction in self.predictions)
             return predict_string + '\n'
+
 
         def __str__(self):
             predictions = self.predictions_str()
@@ -292,33 +340,39 @@ class Vault():
                 f'executed={self.executed}\n'
                 ')'
             )
-        
+
+
         def __eq__(self, value):
             if not isinstance(value,Vault.GroupWagerContract):
                 return False
             return {value.team_1_id, value.team_2_id} == {self.team_1_id, self.team_2_id} and value.expiration == self.expiration
+
 
         async def empty(self): 
             if len(self.predictions) <= 0:
                 return True
             return False
 
+
         async def found(self, id:int):
             if self._team_1_id == id or self._team_2_id == id:
                 return True
             return False
         
+
         async def prediction_exists(self, gambler:Vault.BankAccount):
             for prediction in self.predictions:
                 if prediction.gambler == gambler:
                     return True
             return False
         
+        
         async def points_prediction_exists(self, team_id:str, points:int):
             for prediction in self.predictions:
                 if prediction.prediction_team == team_id and prediction.prediction_points == points:
                     return True
             return False
+
 
         async def add_prediction(self, gambler:Vault.BankAccount, prediction_id:str, prediction_points:int, amount):
             if not isinstance(gambler, Vault.BankAccount):
@@ -335,10 +389,12 @@ class Vault():
             self._amount += amount
             gambler.money -= amount
         
+
         async def init_contract_deque(self, new_deque):
             if not isinstance(new_deque, deque):
                 raise TypeError('init-Expected type deque.')
             self.predictions = new_deque
+
 
         @classmethod
         async def contract_from_serialized(cls:Type[Vault.GroupWagerContract], serialized_contract) -> Vault.GroupWagerContract:
@@ -367,12 +423,14 @@ class Vault():
             await contract.init_contract_deque(new_deque)
             return contract
 
+
         async def construct_serialized_list(self):
             predictions_list = []
             for entry in self.predictions:
                 serialized = await entry.serialize()
                 predictions_list.append(serialized)
             return predictions_list
+
 
         async def serialize(self):
             entry = {}
@@ -386,11 +444,13 @@ class Vault():
             entry['type'] = str(self.contract_type)
             return entry
         
+
         async def account_in_deque(self, acc):
             for prediction in self.predictions:
                 if acc == prediction.gambler:
                     return True   
             return False
+
 
         async def execute_contract(self, winner:Vault.BankAccount):
             if self.executed:
@@ -407,14 +467,17 @@ class Vault():
             winner.money += self.winnings
             self.executed = True
 
+
         async def refund(self):
+            number_of_predictions = len(self.predictions)
+            amount_per = (self.amount - self.bonus) / number_of_predictions
             for prediction in self.predictions:
-                prediction.gambler.money += self.amount
+                prediction.gambler.money += amount_per
             self.executed = True
 
 
     ###################################################################
-    # individual accounts
+    # BankAccount
     ###################################################################
 
     class BankAccount():
@@ -425,37 +488,45 @@ class Vault():
             self._fantasy_id:int = fantasy_id
             self._money:int = money
 
+
         @property
         def name(self) -> str:
             return self._name
         
+
         @name.setter
         def name(self, result):
             if not isinstance(result, str):
                 raise ValueError(f'Expecting a string.')
             self._name = result
 
+
         @property
         def discord_tag(self) -> str:
             return self._discord_tag
         
+
         @property
         def discord_id(self) -> str:
             return self._discord_id
+
 
         @property
         def fantasy_id(self) -> str:
             return self._fantasy_id
 
+
         @property
         def money(self) -> int:
             return self._money
         
+
         @money.setter
         def money(self, result):
             if result < 0:
                 raise ValueError(f'Balance cannot be negative.')
             self._money = result
+
 
         def __str__(self):
             return ( 
@@ -467,13 +538,16 @@ class Vault():
                 ')'
             )
 
+
         def __eq__(self, other):
             if not isinstance(other, Vault.BankAccount):
-                return NotImplemented
+                raise NotImplementedError
             return self.fantasy_id == other.fantasy_id
+
 
         def __hash__(self):
             return hash(self.fantasy_id)
+
 
         @classmethod
         async def from_serialized(cls:Type[Vault.BankAccount],serialized_account:dict):
@@ -483,6 +557,7 @@ class Vault():
             fantasy_id = serialized_account.get('fantasy_id')
             money = serialized_account.get('money')
             return cls(name=name, discord_tag=discord_tag, discord_id=discord_id, fantasy_id=fantasy_id, money=money)
+
 
         async def serialize(self):
             entry = {}
@@ -510,10 +585,12 @@ class Vault():
     # all current SlapContracts
     contracts:dict[str,deque[Contract]] = {key:deque() for key,_ in CONTRACT_REGISTRY.items()}
 
+
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
     async def len_contracts(cls, contract_type:str) -> int:
         return len(cls.contracts.get(contract_type))
+
 
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
@@ -524,20 +601,24 @@ class Vault():
         next_contract = cls.contracts.get(contract_type)[0]
         return date.today() > next_contract.expiration.date()
 
+
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
     async def get_next_contract(cls, contract_type):
         return cls.contracts.get(contract_type)[0]
+
 
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
     async def pop_contract(cls, contract_type):
         return cls.contracts.get(contract_type).popleft()
 
+
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
     async def get_contract_deque(cls, contract_type):
         return cls.contracts.get(contract_type)
+
 
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
@@ -550,7 +631,7 @@ class Vault():
 
 
     ###################################################################
-    # slaps specific
+    # Slaps specific
     ###################################################################
 
     @staticmethod
@@ -561,12 +642,13 @@ class Vault():
 
 
     ###################################################################
-    # wagers specific
+    # Wagers specific
     ###################################################################
 
     @staticmethod
     async def create_wager_contract(team_1_id:str, team_2_id:str, expiration_date:datetime, week:int, amount:int=0, executed:bool=False):
         return Vault.GroupWagerContract(team_1_id=team_1_id, team_2_id=team_2_id, expiration_date=expiration_date, week=week, amount=amount, executed=False)
+
 
     @classmethod
     async def wager_exists(cls, contract:Vault.GroupWagerContract):
@@ -575,6 +657,7 @@ class Vault():
                 return True
         return False
 
+
     @classmethod
     async def wager_by_id_exists(cls, id:str) -> bool:
         for entry in cls.contracts.get(Vault.GroupWagerContract.__name__):
@@ -582,6 +665,7 @@ class Vault():
                 return True
         return False
     
+
     @classmethod
     async def get_wager(cls, fantasy_id:str) -> Vault.GroupWagerContract:
         for entry in cls.contracts.get(Vault.GroupWagerContract.__name__):
@@ -591,16 +675,18 @@ class Vault():
 
 
     ###################################################################
-    # Create Contract interface
+    # Create Contract Interface
     ###################################################################
 
     @overload
     @classmethod
     async def create_contract(cls, challenger_fantasy_id:str, challengee_fantasy_id:str, amount:int, expiration_date:datetime, week:int, contract_type:str): ...
 
+
     @overload
     @classmethod
     async def create_contract(cls, team_1_id:str, team_2_id:str, expiration_date:datetime, week:int, amount:int, contract_type:str, executed:bool=False): ...
+
 
     @classmethod
     @validate_contract_type(CONTRACT_REGISTRY)
@@ -619,7 +705,7 @@ class Vault():
         return contract
 
     ###################################################################
-    # Bank Account utility
+    # BankAccount utility
     ###################################################################
 
     @classmethod
@@ -630,12 +716,14 @@ class Vault():
             account_list.append(account)
         return account_list
 
+
     @classmethod
     async def fantasy_id_by_discord_id(cls, discord_id) -> str:
         for key, value in cls.accounts.items():
             if value.discord_id == discord_id:
                 return key
         return None
+
 
     @classmethod
     async def bank_account_info_by_discord_id(cls, discord_id) -> Optional[str]:
@@ -644,12 +732,14 @@ class Vault():
                 return str(value)
         return None
 
+
     @classmethod
     async def bank_account_by_discord_id(cls, discord_id) -> Vault.BankAccount:
         for key, value in cls.accounts.items():
             if value.discord_id == discord_id:
                 return value
         return None
+
 
     @classmethod
     async def transfer_money(cls,from_fantasy_id:str, to_fantasy_id:str, amount:int):
@@ -682,6 +772,7 @@ class Vault():
 
         account.money -= amount
 
+
     @classmethod
     async def add_money(cls, fantasy_id:str, amount:int):
         account = cls.accounts.get(fantasy_id)
@@ -701,7 +792,6 @@ class Vault():
 
     @classmethod
     async def initialize(cls, accounts: dict[str, BankAccount] = None, slap_contracts: deque[SlapContract] = None, wager_contracts: deque[GroupWagerContract] = None):
-       
         if accounts is not None:
             if not isinstance(accounts, dict):
                 raise TypeError("Expected a dict of accounts.")

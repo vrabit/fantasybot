@@ -176,6 +176,59 @@ async def setup_vault_accounts_and_wager_contracts_with_predictions():
     await wager_3.add_prediction(gambler=account3, prediction_id='5', prediction_points=48, amount=10)
 
 
+@pytest.fixture 
+async def setup_vault_accounts_and_wager_contracts_with_bonus_and_predictions():
+    accounts_dict = {}
+    account1 = Vault.BankAccount(name='banana', discord_tag='<@59729789855555555>', discord_id='59729789855555555', fantasy_id='3', money=100)
+    account2 = Vault.BankAccount(name='pesado', discord_tag='<@95444595755555555>', discord_id='95444595755555555', fantasy_id='4', money=100)
+    account3 = Vault.BankAccount(name='taco', discord_tag='<@95648312555555555>', discord_id='95648312555555555', fantasy_id='5', money=100)
+    accounts_dict[account1.fantasy_id] = account1
+    accounts_dict[account2.fantasy_id] = account2
+    accounts_dict[account3.fantasy_id] = account3
+
+    await Vault.initialize(accounts_dict)
+
+    yesterday = datetime.today() - timedelta(days = 1)
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+
+    # slaps
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account2.fantasy_id, 
+        amount = 10, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )
+    await Vault.create_contract(
+        challenger_fantasy_id=account1.fantasy_id, 
+        challengee_fantasy_id=account3.fantasy_id, 
+        amount = 10, 
+        expiration_date=yesterday, 
+        week=4, 
+        contract_type=Vault.SlapContract.__name__
+    )   
+
+    # wagers
+    wager_1:Vault.GroupWagerContract = await Vault.create_contract(team_1_id='1', team_2_id='2', expiration_date=yesterday, week=5, amount=10, contract_type=Vault.GroupWagerContract.__name__)
+    wager_2:Vault.GroupWagerContract  = await Vault.create_contract(team_1_id='3', team_2_id='4', expiration_date=yesterday, week=5, amount=10, contract_type=Vault.GroupWagerContract.__name__)
+    wager_3:Vault.GroupWagerContract  = await Vault.create_contract(team_1_id='5', team_2_id='6', expiration_date=yesterday, week=5, amount=10, contract_type=Vault.GroupWagerContract.__name__)
+
+    await wager_1.add_prediction(gambler= account1, prediction_id='1', prediction_points=60, amount=10)
+    await wager_1.add_prediction(gambler= account2, prediction_id='2', prediction_points=65, amount=10)
+    await wager_1.add_prediction(gambler= account3, prediction_id='1', prediction_points=55, amount=10)
+
+    await wager_2.add_prediction(gambler=account1, prediction_id='3', prediction_points=40, amount=10)
+    await wager_2.add_prediction(gambler=account2, prediction_id='4', prediction_points=30, amount=10)
+    await wager_2.add_prediction(gambler=account3, prediction_id='3', prediction_points=48, amount=10)
+
+    await wager_3.add_prediction(gambler=account1, prediction_id='6', prediction_points=40, amount=10)
+    await wager_3.add_prediction(gambler=account2, prediction_id='5', prediction_points=30, amount=10)
+    await wager_3.add_prediction(gambler=account3, prediction_id='5', prediction_points=48, amount=10)
+
+
 #############################################################################
 # bank_account tests
 #############################################################################
@@ -627,7 +680,7 @@ async def test_group_wager_execution(setup_vault_accounts):
     yesterday = datetime.today() - timedelta(days = 1)
     await Vault.create_contract(team_1_id='8', team_2_id='9', expiration_date=yesterday, week=4, contract_type=Vault.GroupWagerContract.__name__)
 
-    wager = await Vault.get_wager(id='8')
+    wager = await Vault.get_wager(fantasy_id='8')
     acc_1 = Vault.accounts.get('3')
     acc_2 = Vault.accounts.get('4')
     acc_3 = Vault.accounts.get('5')
@@ -777,3 +830,48 @@ async def test_execute_all_contracts(setup_vault_accounts_and_wager_contracts_wi
     assert account2.money == 170
     assert account3.money == 80
 
+@pytest.mark.asyncio
+@pytest.mark.general
+async def test_refund(setup_vault_accounts_and_wager_contracts_with_predictions):
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+
+    while await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__):
+        contract:Vault.SlapContract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+        assert contract.winnings == 20
+        await contract.refund()
+        await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
+
+    while await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
+        contract:Vault.GroupWagerContract = await Vault.get_next_contract(contract_type=Vault.GroupWagerContract.__name__)
+        assert contract.winnings == 30
+        await contract.refund()
+        await Vault.pop_contract(contract_type=Vault.GroupWagerContract.__name__)
+
+    assert account1.money == 100
+    assert account2.money == 100
+    assert account3.money == 100
+
+@pytest.mark.asyncio
+@pytest.mark.general
+async def test_refund(setup_vault_accounts_and_wager_contracts_with_bonus_and_predictions):
+    account1 = Vault.accounts.get('3')
+    account2 = Vault.accounts.get('4')
+    account3 = Vault.accounts.get('5')
+
+    while await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__):
+        contract:Vault.SlapContract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
+        assert contract.winnings == 20
+        await contract.refund()
+        await Vault.pop_contract(contract_type=Vault.SlapContract.__name__)
+
+    while await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
+        contract:Vault.GroupWagerContract = await Vault.get_next_contract(contract_type=Vault.GroupWagerContract.__name__)
+        assert contract.winnings == 40
+        await contract.refund()
+        await Vault.pop_contract(contract_type=Vault.GroupWagerContract.__name__)
+
+    assert account1.money == 100
+    assert account2.money == 100
+    assert account3.money == 100
