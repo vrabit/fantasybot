@@ -1,17 +1,16 @@
 import discord
 from discord import app_commands
-from discord.ext import tasks,commands
+from discord.ext import commands
 
 import asyncio
 from datetime import datetime, date, timedelta
-import os
 from pathlib import Path
-from collections import deque
 
 from yfpy.models import GameWeek
 
 from bet_vault.vault import Vault
 import utility
+from cogs_helpers import FantasyHelper
 
 import logging
 logger = logging.getLogger(__name__)
@@ -109,7 +108,7 @@ class SlapChallenge(commands.Cog):
             if role is None:
                 logger.warning("[SlapChallenge] - Role doesn't exist.")
                 return
-            
+
             try:
                 await member.add_roles(role)
                 logger.info(f'[SlapChallenge] - {member.display_name} assigned {role_name}')
@@ -175,82 +174,6 @@ class SlapChallenge(commands.Cog):
 
 
     ###################################################################
-    # season checks
-    ###################################################################
-
-    async def season_over(self) -> bool:
-        async with self.bot.state.league_lock:
-            fantasy_league = self.bot.state.league 
-
-        # check if season is over
-        today_obj = date.today()
-        season_end_obj = datetime.strptime(fantasy_league.end_date, '%Y-%m-%d').date()
-        if today_obj > season_end_obj:
-            logger.info('[SlapChallenge] - Season Ended')
-            return True
-        return False
-    
-
-    async def season_started(self) -> bool:
-        async with self.bot.state.league_lock:
-            fantasy_league = self.bot.state.league 
-
-        # check if season is over
-        today_obj = date.today()
-        season_start_obj = datetime.strptime(fantasy_league.start_date, '%Y-%m-%d').date()
-        if today_obj < season_start_obj:
-            logger.info(f'[SlapChallenge] - Season Starts {fantasy_league.start_date}')
-            return False
-        return True
-
-
-    ###################################################################
-    # dates
-    ###################################################################
-
-    async def construct_date_list(self,gameweek_list:list[GameWeek]) -> dict:
-        """
-        Constructs a dictionary of game week dates from the gameweek list.
-            
-            Args:
-                gameweek_list (list): List of GameWeek.
-
-            Returns:
-                dict: Dictionary with game week numbers as keys and start/end dates as values.
-        """
-        logger.info('[SlapChallenge] - Constructing date list')
-        dates_dict = {}
-        for gameweek in gameweek_list:
-            current_entry = [gameweek.start,gameweek.end]
-            dates_dict[gameweek.week] = current_entry
-
-        logger.info("[SlapChallenge] - Date list constructed")
-        return dates_dict
-
-    async def load_week_dates(self) -> dict:
-        exists = await self.bot.state.persistent_manager.path_exists(filename=self._week_dates_filename)
-        if not exists:
-            async with self.bot.state.fantasy_query_lock:
-                dates_dict = await self.construct_date_list(self.bot.state.fantasy_query.get_game_weeks_by_game_id())
-            await self.bot.state.persistent_manager.write_json(filename=self._week_dates_filename, data=dates_dict)
-
-        loaded_dates = await self.bot.state.persistent_manager.load_json(filename=self._week_dates_filename)
-        return loaded_dates
-    
-
-    async def get_current_week_dates(self, week) -> tuple[datetime,datetime]:
-        all_dates = await self.load_week_dates()
-        current_week_dates = all_dates.get(str(week))
-        
-        if current_week_dates is None:
-            raise ValueError('Current week dates not found.')
-
-        start_date = datetime.strptime(current_week_dates[0], '%Y-%m-%d')
-        end_date = datetime.strptime(current_week_dates[1], '%Y-%m-%d')
-        return start_date, end_date
-
-
-    ###################################################################
     # Slap Command
     ###################################################################
 
@@ -267,27 +190,26 @@ class SlapChallenge(commands.Cog):
         await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
 
 
-
     @app_commands.command(name="slap",description="Slap Somebody. Loser=Chump. Denier=Pan")
     @app_commands.describe(discord_user="Target's Discord Tag", amount='Tokens to wager.')
     async def slap(self,interaction:discord.Interaction, discord_user:discord.User, amount:int):
         await interaction.response.defer()
 
-        # make sure channel is set
-        await self.setup_slap_channel(interaction.channel.id)
-            
-        if not await self.season_started():
-            return
-
-        if await self.season_over():
-            return
-        
         async with self.bot.state.league_lock:
             fantasy_league = self.bot.state.league
 
+        # make sure channel is set
+        await self.setup_slap_channel(interaction.channel.id)
+            
+        if not await FantasyHelper.season_started(fantasy_league=fantasy_league):
+            return
+
+        if await FantasyHelper.season_over(fantasy_league=fantasy_league):
+            return
+        
         # cant challenge someone on first day of the week
         current_week = fantasy_league.current_week
-        start_datetime, end_date = await self.get_current_week_dates(current_week)
+        start_datetime, end_date = await FantasyHelper.get_current_week_dates(self.bot, current_week, self._week_dates_filename)
         expiration_date = end_date + timedelta(days = 1)
         today_date = date.today()
 
@@ -348,6 +270,10 @@ class SlapChallenge(commands.Cog):
             logger.error(f"[SlapChallenge] - Failed to send error message: {e}")
 
 
+    ####################################################
+    # Setup
+    ####################################################
+
     async def setup_discord(self):
         data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
 
@@ -358,7 +284,7 @@ class SlapChallenge(commands.Cog):
             self.bot.state.slaps_channel_id = None
 
 
-    async def load_gifs(self):
+    async def load_challenge_variables(self):
         data = await self.bot.state.discord_auth_manager.load_json(filename = self._challenge_filename)
         self.loser_role_name=data.get("loser_role_name")
         self.denier_role_name=data.get("denier_role_name")
@@ -392,6 +318,7 @@ class SlapChallenge(commands.Cog):
     async def on_ready(self):
         await self.wait_for_fantasy()
         await self.setup_discord()
+        await self.load_challenge_variables()
         logger.info('[SlapChallenge] - Ready')
 
 

@@ -6,7 +6,6 @@ from typing import Any
 import os
 import asyncio
 
-from collections import deque
 from pathlib import Path
 from bet_vault.vault import Vault
 from datetime import datetime, timedelta, date
@@ -24,15 +23,21 @@ class MaintainVault(commands.Cog):
     def __init__(self,bot):
         self.bot = bot
         self.bot_name = bot.user.name
-        
-        self.gold_color = discord.Color.gold()
-        self.pink_color = discord.Color.pink()
-        self.loser_role_name = 'King Chump'
 
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
         self._ready_to_init = False
         self._ready = False
+        
+        # winner / loser 
+        self.gold_color:discord.Color = discord.Color.gold()
+        self.pink_color:discord.Color = discord.Color.pink()
+        self.loser_role_name:str = None
+        self.denier_role_name:str = None
+        self.challenger_wins_link = None
+        self.challengee_wins_link = None
+        self.wager_winner_link = None
+        self.tie_link = None
 
         # bot embed color
         self.emb_color = self.bot.state.emb_color
@@ -40,39 +45,22 @@ class MaintainVault(commands.Cog):
         # file managers
         self._persistent_manager = self.bot.state.persistent_manager
         self._vault_manager = self.bot.state.vault_manager
+        self._discord_auth_manager = self.bot.state.discord_auth_manager
 
         # vault 
         self._vault:Vault = None
-        self._initial_bank_funds = 100
-        self._default_wager_amount = 10
-        self._default_wager_bonus = 0
+        self._initial_bank_funds:int = None
+        self._weekly_bank_funds:int = None
+        self._default_wager_amount:int = None
+        self._default_wager_bonus:int = None
 
         # files
         self._members_filename = 'members.json'
+        self._week_dates_filename = 'week_dates.json'
         self._vault_accounts_filename = 'vault_accounts.json'
         self._vault_slap_contracts_filename = 'vault_slap_contracts.json'
         self._vault_wager_contracts_filename = 'vault_wager_contracts.json'
-
-
-
-    ###################################################
-    # Create Role 
-    ###################################################
-
-    async def create_role(self, guild:discord.guild, role_name:str, color:discord.Color):
-        role = await guild.create_role(
-            name=role_name,
-            colour=discord.Color.from_rgb(100, 200, 255),
-            hoist=True,
-            mentionable=True,
-            reason='Created a role for FantasyBot',
-        )
-
-        bot_member = guild.me
-        bot_top_role = max(bot_member.roles, key=lambda r: r.position)
-        new_position = bot_top_role.position - 1
-
-        await guild.edit_role_positions(positions={role: new_position})
+        self._challenge_filename = "challenge_config.json"
 
 
     ###################################################
@@ -98,61 +86,14 @@ class MaintainVault(commands.Cog):
         return channel
 
 
-    async def get_member_by_id(self,guild: discord.Guild, user_id: int):
-        member = guild.get_member(user_id)
-
-        if member is None:
-            try:
-                member = await guild.fetch_member(user_id)
-            except Exception as e:
-                logger.error(f'[MaintainVault][get_member_by_id] - Error:{e}')
-                return None
-        return member
-
-
-    async def assign_role(self, discord_member_id:int, role_name:str):
+    async def assign_role(self, discord_member_id:int, role_name:str, color:discord.Color):
         channel = await self.get_slaps_channel()
         if channel is None:
             logger.warning('[MaintainVault][assign_role] - Unable to retrive Slaps Channel.')
             return
 
-        guild = channel.guild
-        roles = guild.roles
-        role = discord.utils.get(roles, name = role_name)
-        if role is None:
-            await self.create_role(guild, self.loser_role_name, self.gold_color)
-        
-        member = await self.get_member_by_id(guild, int(discord_member_id))
-        if member is None:
-            logger.warning('[MaintainVault][assign_role] - Failed to fetch discord member from discord_id.')
-            return
-
-        try:
-            await member.add_roles(role)
-            logger.info(f'[MaintainVault] - {member.display_name} assigned {role_name}')
-        except discord.Forbidden:
-            logger.error(f'[MaintainVault] - Do not have the necessary permissions to assign {role_name} role')
-        except discord.HTTPException as e:
-            logger.error(f'[MaintainVault] - Failed to assign {role_name} role. Error: {e}')
-
-
-    async def remove_role_members(self, role_name:str):
-        channel = await self.get_slaps_channel()
-
-        if channel is None:
-            logger.warning('[MaintainVault] - Unable to retrive Slaps Channel.')
-            return
-        
-        guild = channel.guild
-        role = discord.utils.get(guild.roles, name = role_name)
-        if role is None:
-            logger.warning('[MaintainVault] - Role doesn\'t exist.')
-            return
-
-        if role is not None:
-            for member in role.members:
-                await member.remove_roles(role)
-        
+        await FantasyHelper.assign_role_by_channel(channel=channel, discord_member_id=discord_member_id, role_name=role_name, role_color=color)
+       
 
     ###################################################
     # Format matchup dict
@@ -211,6 +152,72 @@ class MaintainVault(commands.Cog):
 
 
     ###################################################
+    # Display Challenge Results
+    ###################################################
+
+    async def send_embed(self, embed:discord.Embed):
+        channel:discord.TextChannel = await self.get_slaps_channel()
+        await channel.send(embed = embed)
+
+
+    async def display_wager_results(self, contract:Vault.GroupWagerContract, team_1_pts:float, team_2_pts:float, total_points:float, closest_prediction:Vault.GroupWagerContract.Prediction, winners_list:list[Vault.GroupWagerContract.Prediction]):
+        team_1_discord = await utility.teamid_to_discord(team_id=contract.team_1_id, file_manager=self._persistent_manager)
+        team_2_discord = await utility.teamid_to_discord(team_id=contract.team_2_id, file_manager=self._persistent_manager)
+
+        team_1_name = await utility.discord_to_name(discord_id=team_1_discord, file_manager=self._persistent_manager)
+        team_2_name = await utility.discord_to_name(discord_id=team_2_discord, file_manager=self._persistent_manager)
+        title = f"{team_1_name} VS {team_2_name}"
+        if len(title) >= 40:
+            title = f"{team_1_name.split(" ")[-1]} VS {team_2_name.split(" ")[-1]}"
+
+        embed = discord.Embed(
+            title=title, 
+            description=(
+                f"{closest_prediction.gambler.discord_tag} wins {contract.winnings} tokens.\n"
+                f"Total Points: {total_points}"
+            ),
+            color=self.emb_color,
+            timestamp=contract.expiration
+        )
+        embed.add_field(name="Points:", value=f"{team_1_pts}",inline=True) 
+        embed.add_field(name = '\u200b', value = '\u200b', inline=True)
+        embed.add_field(name="Points:", value=f"{team_2_pts}",inline=True)
+        message = ""
+        for prediction in winners_list:
+            if prediction.gambler == closest_prediction.gambler:
+                message += f"{prediction.gambler.name} - {prediction.gambler.discord_tag}\nPrediction: {prediction.prediction_points} pts. 🏆\n\n"
+            else:
+                message += f"{prediction.gambler.name} - {prediction.gambler.discord_tag}\nPrediction: {prediction.prediction_points} pts. \n\n"
+        embed.add_field(name = '\u200b', value = message, inline = False)
+        embed.set_image(url=self.wager_winner_link)
+        embed.set_footer(text="Group Wager")
+        await self.send_embed(embed=embed)
+
+
+    async def display_slap_results(self, contract:Vault.SlapContract, winner_fantasy_id:str, challenger_points:float, challengee_points:float):
+        if contract.challenger == winner_fantasy_id:
+            description = f"{contract.challenger.discord_tag} 🏆 defeats {contract.challengee.discord_tag}\nWinner takes {contract.winnings} tokens."
+            image = self.challenger_wins_link
+        else:
+            description = f"{contract.challenger.discord_tag} defeated by {contract.challengee.discord_tag} 🏆\nWinner takes {contract.winnings} tokens."
+            image = self.challengee_wins_link
+
+        challenger_team_name = await utility.discord_to_name(discord_id=contract.challenger.discord_id, file_manager=self._persistent_manager)
+        challengee_team_name = await utility.discord_to_name(discord_id=contract.challengee.discord_id, file_manager=self._persistent_manager)
+
+        title = f"{challenger_team_name} VS {challengee_team_name}"
+        if len(title) >= 40:
+            title = f"{challenger_team_name.split(" ")[-1]} VS {challengee_team_name.split(" ")[-1]}"
+
+        embed = discord.Embed(title = title, description = description, color=self.emb_color, timestamp=contract.expiration)
+        embed.add_field(name = f"{challenger_team_name}\nPoints: {challenger_points}", value="", inline=True)
+        embed.add_field(name = f"{challengee_team_name}\nPoints: {challengee_points}", value="", inline=True)
+        embed.set_image(url=image)
+        embed.set_footer(text="Slap Challenge")
+        await self.send_embed(embed=embed)
+
+
+    ###################################################
     # Execute Contracts 
     ###################################################
 
@@ -220,7 +227,6 @@ class MaintainVault(commands.Cog):
             contract.executed = True
             return
         logger.info('[MaintainVault][execute_wager] - Evaluating Wager Winner.')
-
 
         # data
         matchup_1_dict = week_dict.get(contract.team_1_id)
@@ -242,11 +248,11 @@ class MaintainVault(commands.Cog):
             return
 
         winner_list = [prediction for prediction in contract.predictions if prediction.prediction_team == winner_id]
-        print(winner_list)
         if winner_list:
-            closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points)) #copy
+            closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points))
             logger.info(f'[MaintainVault][execute_wager] - Team {closest_prediction.gambler.discord_tag} wins {contract.winnings} tokens.')
             await contract.execute_contract(winner=closest_prediction.gambler)
+            await self.display_wager_results(contract=contract, team_1_pts=team_1_total_points, team_2_pts=team_2_total_points, total_points=total_points,closest_prediction=closest_prediction, winners_list=winner_list)
 
 
     async def execute_slap(self, contract:Vault.SlapContract, week_dict:dict[str:Any]):
@@ -258,15 +264,15 @@ class MaintainVault(commands.Cog):
 
         if challenger_dict.get('total_points') > challengee_dict.get('total_points'):
             await contract.execute_contract(contract.challenger)
-            await self.assign_role(int(contract.challengee.discord_id), self.loser_role_name)
+            await self.assign_role(int(contract.challengee.discord_id), self.loser_role_name, self.gold_color)
+            await self.display_slap_results(contract, challenger_id)
         elif challenger_dict.get('total_points') < challengee_dict.get('total_points'):
             await contract.execute_contract(contract.challengee)
-            await self.assign_role(int(contract.challenger.discord_id), self.loser_role_name)   
+            await self.assign_role(int(contract.challenger.discord_id), self.loser_role_name, self.gold_color)   
+            await self.display_slap_results(contract, challengee_id, challenger_dict.get('total_points'), challengee_dict.get('total_points'))
         else:
             await contract.refund()
-        
-        contract.executed = True
-        
+            
 
     async def execute_by_contract_type(self, contract_type):
         CONTRACT_EXECUTORS = {
@@ -291,6 +297,7 @@ class MaintainVault(commands.Cog):
 
             await self._vault.pop_contract(contract_type=contract_type)
             await self.store_all()
+
 
     async def execute_all_contracts(self):
         logger.info("[MaintainVault] - Executing all Conracts")
@@ -324,7 +331,7 @@ class MaintainVault(commands.Cog):
         try:
             await wager.add_prediction(gambler=gambler, prediction_id=prediction_bank_account.fantasy_id, prediction_points=points_prediction, amount = self._default_wager_amount)
         except Exception as e:
-            message = f"Add predictin failed. Error: {e}"
+            message = f"Add prediction failed. Error: {e}"
             logger.warning(message)
             await interaction.followup.send(message)
             return
@@ -456,12 +463,56 @@ class MaintainVault(commands.Cog):
         
 
     ###################################################
+    # Remove Week Roles      
+    ###################################################
+
+    async def remove_challenge_roles(self):
+        channel:discord.TextChannel = await self.get_slaps_channel()
+        if channel is None:
+            logger.warning('Unable to remove challenge roles. Channel is None')
+        
+        guild:discord.Guild = channel.guild
+
+        try:
+            await FantasyHelper.remove_role_members_by_guild(guild=guild, role_name=self.loser_role_name)
+        except Exception as e:
+            logger.error(f"Unable to remove member's {self.loser_role_name}. Error: {e}")
+            return
+        
+        try:
+            await FantasyHelper.remove_role_members_by_guild(guild=guild, role_name=self.denier_role_name)
+        except Exception as e:
+            logger.error(f"Unable to remove member's {self.denier_role_name}. Error: {e}")
+            return
+
+    @tasks.loop(minutes=1440)
+    async def end_week_tasks(self):
+        async with self.bot.state.league_lock:
+            fantasy_league = self.bot.state.league
+        current_week:int = fantasy_league.current_week
+
+        _, end_date = await FantasyHelper.get_current_week_dates(self.bot, current_week, self._week_dates_filename)
+        
+        if date.today() == end_date.date():
+            logger.info(f"[MaintainVault][end_week_tasks] - End of Week: Removing week's assigned roles.")
+            await self.remove_challenge_roles()
+        else:
+            logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week}'s end date: {end_date}, Current date: {date.today()}")
+
+
+    ###################################################
     # Error Handling         
     ###################################################
 
     @update_wagers.error
     async def update_wagers_error(self,error):
-        logger.error(f'[MaintainVault][update_wagers] - Error: {error}')
+        logger.error(f'[MaintainVault][update_wagers_error] - Error: {error}')
+
+
+    @end_week_tasks.error
+    async def end_week_tasks_error(self,error):
+        logger.error(f"[MaintainVault][end_week_tasks_error] - Error: {error}")
+
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
         message = ""
@@ -508,6 +559,7 @@ class MaintainVault(commands.Cog):
                 accounts[entry.get('id')] = bank_account
             return accounts
         
+
     async def get_member_dict(self, fantasy_id:str):
         members:list[dict] = await self._persistent_manager.load_json(filename = self._members_filename)
         for member in members:
@@ -560,6 +612,10 @@ class MaintainVault(commands.Cog):
         return new_vault
 
 
+    ####################################################
+    # Setup
+    ####################################################
+
     async def init_vault(self):
         loaded_vault = await self.load_all()
         if loaded_vault is None:
@@ -593,6 +649,20 @@ class MaintainVault(commands.Cog):
                 await asyncio.sleep(1)   
 
 
+    async def load_challenge_variables(self):
+        data = await self.bot.state.discord_auth_manager.load_json(filename = self._challenge_filename)
+        self.loser_role_name=data.get("loser_role_name")
+        self.denier_role_name=data.get("denier_role_name")
+        self._initial_bank_funds=data.get("initial_bank_funds")
+        self._weekly_bank_funds=data.get("weekly_bank_funds")
+        self._default_wager_amount = data.get("default_wager_amount")
+        self._default_wager_bonus = data.get("default_bonus_amount")
+        self.challenger_wins_link = data.get("challenger_wins_link")
+        self.challengee_wins_link = data.get("challengee_wins_link")
+        self.tie_link = data.get("tie_link")
+        self.wager_winner_link = data.get("wager_winner_link")
+
+
     async def create_and_store_contract(self):
         expiration = datetime.today() - timedelta(days=4)
         try:
@@ -613,6 +683,7 @@ class MaintainVault(commands.Cog):
     async def on_ready(self): 
         await self.wait_for_fantasy_and_memlist()
         await self.init_vault()
+        await self.load_challenge_variables()
         logger.info('[MaintainVault] - Initialized MaintainVault')
 
         self.update_wagers.start()
