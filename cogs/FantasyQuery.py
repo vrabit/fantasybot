@@ -7,14 +7,11 @@ import utility
 
 import asyncio
 from pathlib import Path
-from collections import deque
 
-from difflib import get_close_matches
 from yfpy.models import Scoreboard, League, Matchup, Team, Player
 
 import os
 import datetime
-from functools import wraps
 
 import logging
 logger = logging.getLogger(__name__)
@@ -225,7 +222,7 @@ class FantasyQuery(commands.Cog):
                     member = await interaction.guild.fetch_member(int(discord_user))
                 except Exception as e:
                     logger.error(f'[FantasyQuery][construct_chump_champ] - Error: {e}')
-                    await interaction.followup.send(f'Failed to Construct Player Profile.')
+                    await interaction.followup.send('Failed to Construct Player Profile.')
                     return
 
             if discord_user is not None:

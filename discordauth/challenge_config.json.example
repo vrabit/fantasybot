@@ -1,10 +1,16 @@
 {
     "loser_role_name":"King Chump",
     "denier_role_name":"Coward",
-    "challenge_gif_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTZnZ2p6cnRxcHJucXZ4bGtpcThxd3VscWY0ZTFnMzZ3ZDQ0OXMwcSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VeXiycRe0X4IewK6WY/giphy.gif",
+    "challenge_send_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExOTZnZ2p6cnRxcHJucXZ4bGtpcThxd3VscWY0ZTFnMzZ3ZDQ0OXMwcSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/VeXiycRe0X4IewK6WY/giphy.gif",
     "challenge_accept_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWgyd3B4eHM0bms3bnloZXIyOWF4aHFqZ3ZsdzJ6cXhtN2Q4ZjZqdyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/V1xyrsMPCewzAoURLh/giphy.gif",
+    "challenge_deny_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNmlwcTQ4dzcxZWJhcHk5MHpoMXZxbDBpcWJ1bGdtam1xbGprbmZ4ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/GhySRlT2q4nj6SSbhC/giphy.gif",
     "tie_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExbGs0MGJkaHc3YjN5b2p0eGp0NzY3OTkwa2ZpanpmOTVxbDFsOTN0NCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/1Q763R06W61dKBKZuM/giphy.gif",
     "challenger_wins_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNWZ4bW96dmFxN20wbWE3cWRxZXlsbW5obGd2anJxOXRoOTR6Nm9ldCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/aB4piAqj3kbTcz4s08/giphy.gif",
     "challengee_wins_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGkybnhjZXp6bXhjdzZlZmdtbzJhdGI5OXd2b2x4dDVjZTN0M3cyeiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/G8IW5iQA4yeQ0ig0iJ/giphy.gif",
-    "timeout_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3d4NjExNmFqczAyOGltb2hveXl4OHNlcGdwc2d1eGxsaWRldnNrciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/XKPFjQAYe4l3nLxcr7/giphy.gif"
+    "timeout_link":"https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExN3d4NjExNmFqczAyOGltb2hveXl4OHNlcGdwc2d1eGxsaWRldnNrciZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/XKPFjQAYe4l3nLxcr7/giphy.gif",
+    "wager_winner_link":"https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWhyYngzM2xzZGN5azBkdGZyZGFjb21vYTExa3ExODlubW40aGc4dyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cJDO4e7CaNL7jVA1ri/giphy.gif",     
+    "initial_bank_funds": 100,
+    "weekly_bank_funds": 100,
+    "default_wager_amount": 10,
+    "default_bonus_amount": 0
 }

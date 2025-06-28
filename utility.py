@@ -1,12 +1,9 @@
 from pathlib import Path
 import string
-
-
-current_dir = Path(__file__).parent
-
 import logging
-logger = logging.getLogger(__name__)
 
+logger = logging.getLogger(__name__)
+current_dir = Path(__file__).parent
 
 EMPTY = '\u001b'
 _member_filename = 'members.json'
@@ -83,11 +80,11 @@ def id_to_mention(user) -> str:
     """ 
     Convert user id to mention format.
         Args:
-            user (int): User id
+            user (int): User's discord id
         Returns:
             str: User mention in the format <@user_id>
     """
-    return '<@'+str(user) + '>'
+    return f'<@{str(user)}>'
 
 
 def arg_to_int(arg:int | float | str | bool) -> int | None:
