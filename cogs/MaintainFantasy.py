@@ -39,7 +39,6 @@ class MaintainFantasy(commands.Cog):
 
         delta = (now_utc - issued_utc).total_seconds() 
         time_remaining = 3600 - delta 
-        print(f"[MaintainFantasy] - {time_remaining}")
 
         if self._first_run:
             logger.info("Initializing Fantasy Object")

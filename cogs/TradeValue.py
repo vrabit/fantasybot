@@ -1,6 +1,7 @@
 import discord
 from discord.ext import tasks, commands
 from discord import app_commands
+from typing import Optional
 
 from pathlib import Path
 
@@ -138,7 +139,7 @@ class TradeValue(commands.Cog):
         return player_names, player_values
 
 
-    async def create_graph(self, discord_user:str):
+    async def create_graph(self, discord_user:str) -> tuple[Optional[str],Optional[str]]:
         newln = '\n'
 
         if discord_user in self.trades_sends and discord_user in self.trades_receives:
@@ -172,7 +173,6 @@ class TradeValue(commands.Cog):
                          'Sends', 
                          f"{sends_names[i].replace(' ', newln)}{newln}{sends_values_list[i]}", 
                          ha='center', va='center', color='black', fontsize = 12)
-
 
             ax1.set_xlabel('', fontsize=12, color='white', labelpad=10, fontweight='bold')
             ax1.set_title('', fontsize=14, color='white', pad=15, fontweight='bold')
@@ -208,7 +208,6 @@ class TradeValue(commands.Cog):
             ax2.spines['left'].set_edgecolor((1, 1, 1, 0))  # Fully transparent
             ax2.spines['right'].set_edgecolor((1, 1, 1, 0))  # Fully transparent
 
-
             plt.tight_layout()
 
             # create save folder
@@ -223,7 +222,6 @@ class TradeValue(commands.Cog):
             return filename, save_folder
         else:
             return None, None
-
 
 
     ###################################################
@@ -264,8 +262,8 @@ class TradeValue(commands.Cog):
             await message.delete()
 
 
-    @app_commands.command(name="compare_value",description="Evaluate trade value")
-    async def compare_value(self,interaction:discord.Interaction):
+    @app_commands.command(name="trade_evaluate",description="Evaluate trade value")
+    async def trade_evaluate(self,interaction:discord.Interaction):
         await interaction.response.defer(ephemeral=False)
 
         filename, save_folder = await self.create_graph(str(interaction.user.id))
@@ -292,8 +290,8 @@ class TradeValue(commands.Cog):
         else:
             await interaction.followup.send("Failed")
 
-    @app_commands.command(name="clear_trade",description="Clear your current Trade Proposal")
-    async def clear_trade(self,interaction:discord.Interaction):
+    @app_commands.command(name="trade_clear",description="Clear your current Trade Proposal")
+    async def trade_clear(self,interaction:discord.Interaction):
         await interaction.response.defer()
         await self.clear_trades(str(interaction.user.id))
         await interaction.followup.send("Trade Cleared")      

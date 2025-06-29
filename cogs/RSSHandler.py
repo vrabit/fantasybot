@@ -53,6 +53,7 @@ class RSSHandler(commands.Cog):
         feed_queue = await self.bot.state.persistent_manager.load_json(filename = self._rss_queue_filename)
         return deque(feed_queue)
 
+
     async def fetch_rss(self,session,url):
         logger.info('[RSSHandler] - Fetching RSS')
         async with session.get(url) as response:
@@ -78,7 +79,6 @@ class RSSHandler(commands.Cog):
         title = next(iter(value))
         detail=value[title][0]
         page_url=value[title][1]
-
 
         embed = discord.Embed(title = title, url=page_url, description = '', color = self.emb_color)
 
@@ -122,9 +122,9 @@ class RSSHandler(commands.Cog):
 
             async with self.feed_queue_lock:
                 for entry in content.entries:    
-                    if len(self.feed_queue) == 0:
-                        await self.send_rss({entry.get('title'):(entry.get('summary'),entry.get('link'))})
+                    if len(self.feed_queue) <= 0:
                         self.feed_queue.append({entry.get('title'):(entry.get('summary'),entry.get('link'))})
+                        await self.send_rss({entry.get('title'):(entry.get('summary'),entry.get('link'))})
                     else:
                         found = False
                         for dict_entry in self.feed_queue:
@@ -132,9 +132,9 @@ class RSSHandler(commands.Cog):
                                 found = True
                                 break
                         if not found:
-                            await self.send_rss({entry.get('title'):(entry.get('summary'),entry.get('link'))})
                             self.feed_queue.append({entry.get('title'):(entry.get('summary'),entry.get('link'))})
-        
+                            await self.send_rss({entry.get('title'):(entry.get('summary'),entry.get('link'))})
+                            
         logger.info('[RSSHandler][Poll_RSS] - .. Done')
         await self.save_queue()
 
@@ -240,7 +240,6 @@ class RSSHandler(commands.Cog):
     def cog_unload(self):
         logger.info('[RSSHandler] - Cog Unload')
         self.poll_rss.cancel()
-        self.bot.loop.create_task(self.save_queue())
 
 
 async def setup(bot):

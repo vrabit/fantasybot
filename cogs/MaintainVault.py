@@ -56,6 +56,7 @@ class MaintainVault(commands.Cog):
 
         # files
         self._members_filename = 'members.json'
+        self._funds_distribution_log = "weekly_funds.json"
         self._week_dates_filename = 'week_dates.json'
         self._vault_accounts_filename = 'vault_accounts.json'
         self._vault_slap_contracts_filename = 'vault_slap_contracts.json'
@@ -434,9 +435,11 @@ class MaintainVault(commands.Cog):
             await self.store_all()
 
 
-    async def check_wager_ready(self) -> bool:
-        if await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
-            logger.info("Last Week's wagers must be executed.")
+    async def check_contracts_ready(self) -> bool:
+        group_wager_ready = await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__)
+        slap_wager_ready = await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__)
+        if group_wager_ready or slap_wager_ready:
+            logger.info("Last Week's contracts must be executed.")
             await self.execute_all_contracts()
         
         if await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__):
@@ -450,7 +453,7 @@ class MaintainVault(commands.Cog):
             league = self.bot.state.league
         current_week = league.current_week
 
-        if not await self.check_wager_ready():
+        if not await self.check_contracts_ready():
             return
         
         data_dict = await self.get_matchup_data(current_week)
@@ -461,6 +464,55 @@ class MaintainVault(commands.Cog):
     async def update_wagers(self):
         await self.create_current_week_wagers()
         
+
+    ###################################################
+    # Weekly Maintenance
+    ###################################################
+
+    async def distribute_weekly_funds(self, current_week_data:dict):
+        for key, _ in Vault.accounts.items():
+            await Vault.add_money(key,self._weekly_bank_funds)
+
+        current_week_data["distibuted_funds"] = self._weekly_bank_funds
+        current_week_data["distributed"] = True
+
+
+    async def create_funds_log(self):
+        loaded_dates:dict = await FantasyHelper.load_week_dates(bot=self.bot, week_dates_filename=self._week_dates_filename)
+
+        funds_log_dict = {}
+        for key, value in loaded_dates.items():
+            funds_log_dict[key] = {
+                "start_date":value[0],
+                "end_date":value[1],
+                "distibuted_funds":0,
+                "distributed":False
+            }
+        return funds_log_dict
+    
+
+    @tasks.loop(minutes=1440)
+    async def week_start_check(self):
+        data = await self._persistent_manager.load_json(filename=self._funds_distribution_log)
+
+        if not data:
+            data = await self.create_funds_log()
+
+        async with self.bot.state.league_lock:
+            fantasy_league = self.bot.state.league
+
+        current_week = fantasy_league.current_week
+
+        current_week_data = data.get(str(current_week))
+        if not current_week_data:
+            raise ValueError("[MaintainVault][week_start_check] - Invalid week.")
+            
+        if current_week_data.get("distributed") == True:
+            return
+        
+        await self.distribute_weekly_funds(current_week_data=current_week_data)
+        await self._persistent_manager.write_json(filename=self._funds_distribution_log, data=data)
+
 
     ###################################################
     # Remove Week Roles      
@@ -512,6 +564,11 @@ class MaintainVault(commands.Cog):
     @end_week_tasks.error
     async def end_week_tasks_error(self,error):
         logger.error(f"[MaintainVault][end_week_tasks_error] - Error: {error}")
+
+
+    @week_start_check.error
+    async def week_start_check_error(self,error):
+        logger.error(f"[MaintainVault][week_start_check_error] - Error: {error}")
 
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
@@ -686,6 +743,7 @@ class MaintainVault(commands.Cog):
         await self.load_challenge_variables()
         logger.info('[MaintainVault] - Initialized MaintainVault')
 
+        self.week_start_check.start()
         self.update_wagers.start()
         ## temporary for testing ##
         #await self.create_and_store_contract()
