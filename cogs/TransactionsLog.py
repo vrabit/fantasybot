@@ -188,7 +188,6 @@ class TransactionsLog(commands.Cog):
             
         # Update transactions .json file
         await self.bot.state.persistent_manager.write_json(filename=self._transactions_filename, data=self.transactions)
-        #utility.store_transactions(self.transactions, self.filename)
 
 
     async def unpack_transaction(self, transaction_id:str):
@@ -239,6 +238,9 @@ class TransactionsLog(commands.Cog):
     @check_transactions.error
     async def check_transactions_error(self,error):
         logger.error(f'[TransactionsLog][check_transactions] - Error: {error} \n')
+        self.check_transactions.cancel()
+        await asyncio.sleep(60)
+        self.check_transactions.start() 
 
 
     ###################################################

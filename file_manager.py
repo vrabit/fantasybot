@@ -4,6 +4,11 @@ import aiofiles
 import csv
 import io
 import pickle
+from natsort import natsorted
+import imageio
+import pandas as pd
+from typing import Optional
+
 
 from pathlib import Path
 from functools import wraps
@@ -116,6 +121,37 @@ class BaseFileManager:
             async with aiofiles.open(path, 'w', newline='') as file:
                 await file.write(buffer.getvalue())
 
+
+    async def load_csv_formatted(self, filename: str) -> Optional[pd.DataFrame]:
+        raw_path = self._get_raw_path()
+        lock = self._get_lock(filename)
+        thread_lock = self._get_lock('to_thread')
+        path = self._get_path(filename)
+
+        raw_path.mkdir(parents=True, exist_ok=True) # Make sure the directory exists
+
+        async with lock:
+            async with thread_lock:
+                try:
+                    data = await asyncio.to_thread(pd.read_csv, path)
+                    return data
+                except FileNotFoundError:
+                    return None
+
+
+    async def write_csv_formatted(self, filename: str, dataframe: pd.DataFrame) -> None:
+        raw_path = self._get_raw_path()
+        lock = self._get_lock(filename)
+        thread_lock = self._get_lock('to_thread')
+        path = self._get_path(filename)
+
+        raw_path.mkdir(parents=True, exist_ok=True) # Make sure the directory exists
+
+        async with lock:
+            async with thread_lock:
+                await asyncio.to_thread(dataframe.to_csv, path, index=False, encoding='utf-8')
+
+
     async def path_exists(self, filename: str) -> bool:
         path = self._get_path(filename)
 
@@ -123,6 +159,18 @@ class BaseFileManager:
             return True
         else:
             return False
+
+
+    async def save_fig(self, fig, filepath):
+        pass
+
+
+    async def load_dataframe(self, filepath):
+        pass
+
+
+    async def save_gif(self, folder_path, filename, fps):
+        pass
 
 
 class PersistentManager(BaseFileManager):
@@ -141,6 +189,9 @@ class LiveManager(BaseFileManager):
     def __init__(self):
         super().__init__('live_data')
 
+class SettingsManager(BaseFileManager):
+    def __init__(self):
+        super().__init__('settings')
 
 class TestingManager(BaseFileManager):
     def __init__(self):

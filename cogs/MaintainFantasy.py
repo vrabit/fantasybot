@@ -57,6 +57,7 @@ class MaintainFantasy(commands.Cog):
 
             await self.refresh_fantasy()
             load_dotenv(self.parent_dir / 'yfpyauth' / '.env', override=True)
+            
         elif time_remaining < 180:
             logger.info(f"[MaintainFantasy] - Token Valid: {time_remaining:.2f} seconds remaining until token refresh.")
 
@@ -94,7 +95,7 @@ class MaintainFantasy(commands.Cog):
             # Set current League
             self.bot.state.league = self.bot.state.fantasy_query.get_league()['league']
 
-        logger.info('[MaintainFantasy] - .. Done')
+        logger.info('[MaintainFantasy] - Fantasy Refesh Done')
 
 
     ###################################################

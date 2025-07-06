@@ -301,7 +301,7 @@ class MaintainVault(commands.Cog):
 
 
     async def execute_all_contracts(self):
-        logger.info("[MaintainVault] - Executing all Conracts")
+        logger.info("[MaintainVault] - Executing all Contracts")
         await self.execute_by_contract_type(contract_type=Vault.SlapContract.__name__)
         await self.execute_by_contract_type(contract_type=Vault.GroupWagerContract.__name__)
 
@@ -707,7 +707,7 @@ class MaintainVault(commands.Cog):
 
 
     async def load_challenge_variables(self):
-        data = await self.bot.state.discord_auth_manager.load_json(filename = self._challenge_filename)
+        data = await self.bot.state.settings_manager.load_json(filename = self._challenge_filename)
         self.loser_role_name=data.get("loser_role_name")
         self.denier_role_name=data.get("denier_role_name")
         self._initial_bank_funds=data.get("initial_bank_funds")

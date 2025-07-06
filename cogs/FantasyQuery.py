@@ -2,13 +2,24 @@ import discord
 from discord import app_commands
 from discord.ext import tasks, commands
 
-from cogs_helpers import FantasyQueryHelper
+from typing import Optional
+import pandas as pd
+
+from cogs_helpers import FantasyQueryHelper, FantasyHelper
 import utility
 
 import asyncio
 from pathlib import Path
 
-from yfpy.models import Scoreboard, League, Matchup, Team, Player
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import pandas as pd
+from io import BytesIO
+import imageio
+
+from difflib import get_close_matches
+from yfpy.models import Scoreboard, League, Matchup, Team, Player, Roster, Name
 
 import os
 import datetime
@@ -24,15 +35,26 @@ class FantasyQuery(commands.Cog):
         self.parent_dir = self.current_dir.parent
         self._ready = False
 
+        # loaded files
         self.player_ids_filename = 'player_ids.csv'
         self.members_filename = 'members.json'
         self._private_filename = 'private.json'
+
+        # generated files
+        self._roster_csv = 'roster_value.csv'
+        self._matchup_csv = 'matchup_data.csv'
 
         # bot embed color
         self.emb_color = self.bot.state.emb_color
         self.winner_color = self.bot.state.winner_color
         self.loser_color = self.bot.state.loser_color
 
+        # Season Dates
+        self._week_dates_filename = 'week_dates.json'
+
+        # File Name Templates
+        self.roster_json_template = 'week_{week}_roster.json'
+        self.matchup_json_template = "week_{week}_matchup.json"
 
     ###################################################
     # Discord Commands          
@@ -431,7 +453,7 @@ class FantasyQuery(commands.Cog):
 
         # load names 
         players_dict_list = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
-        #utility.load_members()
+
         embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
@@ -454,11 +476,12 @@ class FantasyQuery(commands.Cog):
         async with self.bot.state.fantasy_query_lock:
             standings = self.bot.state.fantasy_query.get_all_standings(self.bot.state.league.num_teams)
 
+        #sorted_standings = sorted(standings, key = lambda tup: int(tup[1].points_for), reverse = True)
         sorted_standings = sorted(standings, key = lambda tup: int(tup[1].points_for), reverse = True)
 
         # load names 
         players_dict_list = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
-        #utility.load_members()
+
         embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
@@ -485,7 +508,7 @@ class FantasyQuery(commands.Cog):
 
         # load names 
         players_dict_list = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
-        #utility.load_members()
+
         embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
@@ -666,8 +689,65 @@ class FantasyQuery(commands.Cog):
 
 
     ###################################################
-    # Recap
+    # Log Season - Save JSON DATA
     ###################################################
+
+    async def get_player_values(self, player_name:str) -> Optional[str]:
+        async with self.bot.state.value_map_lock:
+            closest_key = get_close_matches(player_name,self.bot.state.value_map,n=1,cutoff=0.6)
+        if len(closest_key) == 0:
+            return None
+        else:
+            return self.bot.state.value_map.get(closest_key[0])
+
+    async def format_player_data(self, player_dict:dict, player_specific:dict):
+        player_dict['age'] = player_specific.get('maybeAge')
+        player_dict['yoe'] = player_specific.get('maybeYoe')
+        player_dict['weight'] = player_specific.get('maybeWeight')
+        player_dict['height'] = player_specific.get('maybeHeight')
+
+
+    async def format_values(self, player_dict:dict, player_name:str) -> None:
+        values = await self.get_player_values(player_name)
+        if values is None:
+            return
+        
+        player_dict['rank'] = values.get('overallRank')
+        player_dict['positional_rank'] = values.get('positionRank')
+        player_dict['trend30day'] = values.get('trend30Day')
+        player_dict['redraft_value'] = values.get('redraftValue')
+        player_dict['dynasty_value'] = values.get('value')
+
+        player_specific = values.get('player') 
+        if player_specific:
+            await self.format_player_data(player_dict, player_specific)
+
+
+
+    async def serialize_player(self, player:Player, owner_id:str, owner_name:str, week:int):
+        player_dict = {}
+
+        name_obj:Name = player.name
+        player_dict['owner_id'] = owner_id
+        player_dict['owner_name'] = owner_name
+        player_dict['week'] = week
+        player_dict['name'] = name_obj.full
+        player_dict["primary_position"] = player.primary_position
+        player_dict['team_name'] = player.editorial_team_full_name
+        player_dict['number'] = player.uniform_number
+        player_dict['player_key'] = player.player_key
+
+        await self.format_values(player_dict, name_obj.full)
+        return player_dict
+
+
+    async def serialize_roster(self, roster_list:list, roster:Roster, owner_id:str, owner_name:str, week:int):
+        players_list: list[Player] = roster.players
+
+        for player in players_list:
+            serialized_player = await self.serialize_player(player,owner_id, owner_name, week)
+            roster_list.append(serialized_player)
+
 
     async def serialize_matchups(self,scoreboard:Scoreboard):
         """
@@ -725,40 +805,281 @@ class FantasyQuery(commands.Cog):
         return matchups_dict
 
 
-    async def log_season(self,fantasy_league_info):
-        #for every week log the matchup results
-        for i in range(fantasy_league_info.start_week, fantasy_league_info.end_week + 1):
+    async def store_scoreboard(self, week:int):
+        filename = self.matchup_json_template.format(week = week)
+        if await self.bot.state.recap_manager.path_exists(filename):
+            return
+        
+        async with self.bot.state.fantasy_query_lock:  
+            current_week_obj = self.bot.state.fantasy_query.get_scoreboard(week)
 
+        serialized_data = await self.serialize_matchups(current_week_obj)
+        logger.info(f"creating {filename}")
+        await self.bot.state.recap_manager.write_json(filename=filename, data = serialized_data)
+
+
+    async def store_roster(self, week:int):
+        filename = self.roster_json_template.format(week=week)
+        
+        if await self.bot.state.recap_manager.path_exists(filename):
+            return
+        
+        async with self.bot.state.league_lock:
+            fantasy_league = self.bot.state.league
+        number_of_teams = int(fantasy_league.num_teams)
+        
+        roster_list = []
+        for i in range(number_of_teams):
+            owner_id = i + 1
+            members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+            for member in members: 
+                if str(owner_id) == member.get('id'):
+                    team_name = member.get('name')
+        
             async with self.bot.state.fantasy_query_lock:  
-                current_week_obj = self.bot.state.fantasy_query.get_scoreboard(i)
+                current_week_roster = self.bot.state.fantasy_query.get_roster(str(owner_id), week)
+            await self.serialize_roster(roster_list, current_week_roster, str(owner_id), team_name, week)
+            await asyncio.sleep(1)
 
-            filename = f"week_{i}_matchup.json"
-            serialized_data = await self.serialize_matchups(current_week_obj)
-            await self.bot.state.recap_manager.write_json(filename=filename, data = serialized_data)
+        logger.info(f"creating {filename}")
+        await self.bot.state.recap_manager.write_json(filename=filename, data=roster_list)
+
+
+    ###################################################
+    # Log season - Create Roster CSV 
+    ###################################################
+
+    async def construct_roster_DataFrame(self, start_week:int, end_week:int):
+        data = []
+        for i in range(start_week,end_week + 1):
+            filename = self.roster_json_template.format(week=i)
+            loaded_data = await self.bot.state.recap_manager.load_json(filename)
+            data += loaded_data
+        
+        df_player_stats = pd.DataFrame(data)
+
+        # fix empty values
+        value_columns = ['trend30day', 'redraft_value', 'dynasty_value']
+        df_player_stats[value_columns]=df_player_stats[value_columns].apply(pd.to_numeric, errors='coerce')
+        df_player_stats[value_columns] = df_player_stats[value_columns].fillna(0).astype(int)
+    
+        stats_columns = ['number', 'rank', 'positional_rank', 'age', 'yoe', 'weight', 'height']
+        df_player_stats[stats_columns] = df_player_stats[stats_columns].apply(pd.to_numeric, errors='coerce')
+        df_player_stats[stats_columns] = df_player_stats[stats_columns][stats_columns].fillna(-1).astype(int)
+        
+        await self.bot.state.recap_manager.write_csv_formatted(self._roster_csv, df_player_stats)
+
+
+    ###################################################
+    # Log season - Create Matchup CSV 
+    ###################################################
+
+    async def construct_matchups_DataFrame(self, start_week:int, end_week:int):
+        def add_to_compiled(entry:dict, compiled_dict:list):
+            for _, details in entry.items():
+                compiled_dict.append(details)
+
+        compiled_list = []
+        for i in range(start_week,end_week + 1):
+            filename=self.matchup_json_template.format(week=i)
+            entry = await self.bot.state.recap_manager.load_json(filename)
+            add_to_compiled(entry,compiled_list)
+
+        df_matchups_raw = pd.DataFrame(compiled_list)
+
+        int_values_names = ['id', 'week', 'faab', 'opponent_id']
+        numeric_values_names = ['id', 'week', 'faab', 'opponent_id', 'points']
+        df_matchups_raw[numeric_values_names] = df_matchups_raw[numeric_values_names].apply(pd.to_numeric, errors='coerce')
+        df_matchups_raw[int_values_names] = df_matchups_raw[int_values_names].fillna(-1).astype(int)
+        df_matchups_raw['points'] = df_matchups_raw['points'].fillna(0.0).astype(float)
+
+        await self.bot.state.recap_manager.write_csv_formatted(self._matchup_csv, df_matchups_raw)
+
+
+    ###################################################
+    # Log season - Startup    
+    ###################################################
+
+    async def log_season(self,fantasy_league_info):
+        _, end_date = await FantasyHelper.get_current_week_dates(self.bot, fantasy_league_info.current_week, self._week_dates_filename)
+
+        today_date = datetime.date.today()
+        if today_date < end_date.date():    # middle of the week, dont include
+            end_week = fantasy_league_info.current_week
+        else:                               # end of the season
+            end_week = fantasy_league_info.current_week + 1
+
+        logger.info("[log_season] - Season log started.")
+        for i in range(fantasy_league_info.start_week, end_week):
+            await self.store_scoreboard(i)
+            await self.store_roster(i)
+
+        # Store Data CSV for Graphs
+        await self.construct_matchups_DataFrame(fantasy_league_info.start_week, end_week)
+        await self.construct_roster_DataFrame(fantasy_league_info.start_week, end_week)
+        logger.info("[log_season] - Season log completed.")
 
 
     @tasks.loop(minutes=1440)
     async def store_data(self):
-
+        logger.info('[FantasyQuery][store_data] - Starting!')
         async with self.bot.state.league_lock:
             fantasy_league_info = self.bot.state.league
 
-        end_date = fantasy_league_info.end_date
-        end_obj = datetime.datetime.strptime(end_date, '%Y-%m-%d').date() 
-        today_obj = datetime.date.today()
+        current_week = fantasy_league_info.current_week
+        if current_week <= 1:
+            logger.info('[FantasyQuery][store_data] - Week 1 not concluded.')
+            return
+        
+        await self.log_season(fantasy_league_info)
 
-        if end_obj < today_obj:
-            await self.log_season(fantasy_league_info)
-        else:
-            logger.info('[FantasyQuery] - Fantasy season has not ended.')
+
+    ###################################################
+    # Season Recap      
+    ###################################################
+
+    async def create_points_DataFrame(self, df):
+        df['week'] = pd.to_numeric(df['week'], errors='coerce').fillna(-1).astype(int)
+        weeks = sorted(df['week'].unique())
+        weeks = [w for w in weeks if w != -1] # Remove the fillna value if it was used
+
+        all_ids = df['id'].unique() # Get all unique IDs
+        all_weeks = sorted(df['week'].unique())
+        all_weeks = [w for w in all_weeks if w != -1]
+
+        # Create a base DataFrame with all ID-Week combinations for rows
+        index = pd.MultiIndex.from_product([all_ids, all_weeks], names=['id', 'week'])
+        full_index_df = pd.DataFrame(index=index)
+
+        # Merge the original data with the full index.
+        filled_df = pd.merge(
+            df[['id', 'week', 'points', 'name']],   # left data frame
+            full_index_df.reset_index(),            # right dataframe. convert index into columns.
+            on=['id', 'week'],                      # columns to join
+            how='right'                             # join type
+        )                           
+
+        # Fill any NaN with 0
+        filled_df['points'] = pd.to_numeric(filled_df['points'], errors='coerce').fillna(0)
+
+        # Sort by ID and Week to ensure correct cumulative sum and name propagation
+        filled_df = filled_df.sort_values(by=['id', 'week'])
+
+        # Calculate cumulative points based on 'id'
+        filled_df['cumulative_points'] = filled_df.groupby('id')['points'].cumsum()
+
+        # Forward-fill 'name' within each 'id' group.
+        filled_df['name'] = filled_df.groupby('id')['name'].ffill()
+
+        # If any IDs appear in 'all_ids' but never had an entry with a 'name'
+        filled_df['name']=filled_df['name'].fillna(value="Unknown Player")
+
+        return filled_df, all_ids, weeks, 
+
+
+    async def generate_points_frame(self, filled_df, week, color_map) -> BytesIO:
+        # Select data for the current week.
+        data_to_plot = filled_df[filled_df['week'] == week][['id', 'name', 'cumulative_points']].copy()
+        data_to_plot = data_to_plot.sort_values(by='cumulative_points', ascending=False)
+
+        fig = plt.figure(figsize=(12, 6), facecolor="#FDF5E2")
+        colors_for_frame = [color_map[player_id] for player_id in data_to_plot['id']]
+
+        ax = sns.barplot(
+            data=data_to_plot,
+            x='cumulative_points',
+            y='name', # Display 'name'
+            hue='name',
+            orient='h',
+            legend=False,
+            order=data_to_plot['name'], # Order by sorted names
+            palette=colors_for_frame,
+            ax=fig.gca()
+        )
+
+        ax.set_facecolor("#E6F2EB")
+        plt.title(f"Cumulative Points – Week {week}")
+        plt.xlabel("Total Points")
+        plt.ylabel("Player")
+        plt.tight_layout()
+
+        # Add labels to the bars
+        for i, row in enumerate(data_to_plot.itertuples()):
+
+            player_id = row.id
+            cumulative = row.cumulative_points
+
+            this_week_points = filled_df[(filled_df['week'] == week) & (filled_df['id'] == player_id)]['points']
+
+            if not this_week_points.empty:
+                label = f"+{float(this_week_points.iloc[0]):.1f}"
+            else:
+                label = "+0"
+
+            text_x_pos = cumulative - 1 if cumulative > 0 else 0.5
+            text_color = 'white' if cumulative > ax.get_xlim()[1] * 0.2 else 'black'
+
+            ax.text(
+                text_x_pos,
+                i,
+                label,
+                va='center',
+                ha='right',
+                fontsize=8,
+                color=text_color,
+                weight='bold'
+            )
+
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+        buf.seek(0)
+        return buf
+
+
+    async def generate_cumulative_frames(self, df_original: pd.DataFrame) -> list[BytesIO]:
+        df = df_original.copy()
+        filled_df, all_ids, weeks = await self.create_points_DataFrame(df)
+
+        num_players = len(all_ids)
+        player_colors = sns.color_palette("husl", num_players)
+        color_map = {player_id: player_colors[i] for i, player_id in enumerate(all_ids)}
+
+        frames_list = []
+        for week in weeks:
+            frame = await self.generate_points_frame(filled_df, week, color_map)
+            frames_list.append(frame)
+
+        return frames_list
+
+
+    async def convert_buffers_list_to_gif_buffer(self,buffers:list[BytesIO], fps=0.5) -> BytesIO:
+        frames = []
+        for buf in buffers:
+            frames.append(imageio.v3.imread(buf))
+
+        gif_buffer = BytesIO()
+        imageio.v3.imwrite(gif_buffer, frames, format='GIF', extension='.gif', fps=fps, loop=0)
+        gif_buffer.seek(0)
+        return gif_buffer
 
 
     @app_commands.command(name="season_recap",description="Season Recap.")
     async def season_recap(self,interaction:discord.Interaction):
         await interaction.response.defer()
 
+        # Generate cumulative points chart
+        df = await self.bot.state.recap_manager.load_csv_formatted(self._matchup_csv)
+        buffer_list:list[BytesIO] = await self.generate_cumulative_frames(df)
+        if buffer_list:
+            filename = 'cumulative_points.gif'
+            gif_buffer = await self.convert_buffers_list_to_gif_buffer(buffer_list)
+            file = discord.File(gif_buffer, filename=filename)
+            embed = discord.Embed(title = "", description = "", color = self.emb_color)
+            embed.set_image(url=f'attachment://{filename}')
 
-        await interaction.followup.send("Filler",ephemeral=False)
+            await interaction.followup.send(embed=embed, file=file)
+        else:
+            await interaction.followup.send("Failed to generate gif.",ephemeral=False)
 
 
     ###################################################
@@ -784,6 +1105,7 @@ class FantasyQuery(commands.Cog):
                 await interaction.response.send_message(message, ephemeral=True)
         except Exception as e:
             logger.error(f"[FantasyQuery] - Failed to send error message: {e}")
+
 
     ###################################################
     # Loop Error Handling          
@@ -819,11 +1141,16 @@ class FantasyQuery(commands.Cog):
                 await asyncio.sleep(1)
 
 
+    async def wait_for_trade_value(self):
+        while not self.bot.state.trade_value_ready:
+            await asyncio.sleep(1)
+
+
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
-        logger.info('[FantasyQuery][store_data] - Starting!')
         self.store_data.start()
+        await self.wait_for_trade_value()
         logger.info('[FantasyQuery] - Ready')
 
 

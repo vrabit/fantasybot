@@ -79,6 +79,14 @@ class BotState:
         self.guild_id = guild_id
         self.guild = guild
 
+        # Player Values
+        self.trade_value_url = None
+        self.trade_value_ready = False
+        self.player_values_lock = asyncio.Lock()
+        self.value_map_lock = asyncio.Lock()
+        self.player_values = None
+        self.value_map = None
+
         # colors
         self.emb_color = discord.Color.from_rgb(225, 198, 153) # default
         self.winner_color = discord.Color.from_rgb(55, 255, 119) # green
@@ -99,6 +107,7 @@ class BotState:
         self.recap_manager = file_manager.RecapManager()
         self.discord_auth_manager = file_manager.DiscordAuthManager()
         self.live_manager = file_manager.LiveManager()
+        self.settings_manager = file_manager.SettingsManager()
         self.vault_manager = file_manager.VaultManager()
 
         # shared vault 

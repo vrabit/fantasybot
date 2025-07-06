@@ -285,7 +285,7 @@ class SlapChallenge(commands.Cog):
 
 
     async def load_challenge_variables(self):
-        data = await self.bot.state.discord_auth_manager.load_json(filename = self._challenge_filename)
+        data = await self.bot.state.settings_manager.load_json(filename = self._challenge_filename)
         self.loser_role_name=data.get("loser_role_name")
         self.denier_role_name=data.get("denier_role_name")
         self._challenge_send_link=data.get("challenge_send_link")

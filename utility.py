@@ -43,7 +43,7 @@ async def teamid_to_name(team_id:int, file_manager) -> str | None:
     return None
 
 
-async def discord_to_teamid(discord_id:int, file_manager) -> int | None:
+async def discord_to_teamid(discord_id:int, file_manager) -> str | None:
     '''
     Convert discord id to team id
         Args:

@@ -118,12 +118,14 @@ async def construct_roster_lists(player_list:list[Player]) -> tuple[deque[int], 
 ################################################################
 
 async def add_matchup_fields_team(team:Team, embed) -> None:
-    embed.add_field(name = team.name.decode('utf-8'), \
-                    value = (
-                        f'{utility.to_blue_text(f'{team.points:.2f}{team.team_projected_points.total:>11.2f}')}'  
-                        f'WP:  {(team.win_probability*100):3.0f}%'
-                    ),
-                    inline = True)
+    embed.add_field(
+        name = f"{team.name.decode('utf-8')} - Id: {team.team_id}",
+        value = (
+            f'{utility.to_blue_text(f'{team.points:.2f}{team.team_projected_points.total:>11.2f}')}'  
+            f'WP:  {(team.win_probability*100):3.0f}% ({team.wins}-{team.losses}-{team.ties})'
+        ),
+        inline = True
+    )
 
 
 async def add_matchup_fields_team_list(team_list:list[Team], embed) -> None:
