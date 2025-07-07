@@ -42,13 +42,10 @@ class fantasyQuery:
         return entry
 
 
-    # FIX THIS, NEVER CALLED 
-    def team_info(self):
-        #teams = self.yahoo_query.get_league_teams()
-        curr_data = repr(self.yahoo_query.get_league_teams())
-        return curr_data
-    
+    def get_league_teams(self):
+        return self.yahoo_query.get_league_teams()
 
+    
     #all matchups
     def get_teams(self):
         return self.yahoo_query.get_league_teams()

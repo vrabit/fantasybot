@@ -10,8 +10,10 @@ import utility
 
 import asyncio
 from pathlib import Path
+import requests
 
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
 import numpy as np
 import seaborn as sns
 import pandas as pd
@@ -19,7 +21,7 @@ from io import BytesIO
 import imageio
 
 from difflib import get_close_matches
-from yfpy.models import Scoreboard, League, Matchup, Team, Player, Roster, Name
+from yfpy.models import Scoreboard, League, Matchup, Team, Player, Roster, Name, TeamStandings
 
 import os
 import datetime
@@ -55,6 +57,9 @@ class FantasyQuery(commands.Cog):
         # File Name Templates
         self.roster_json_template = 'week_{week}_roster.json'
         self.matchup_json_template = "week_{week}_matchup.json"
+        self._matchup_standings_template = 'week_{week}_data.csv'
+        self._player_standings_template = 'week_{week}_data.csv'
+
 
     ###################################################
     # Discord Commands          
@@ -874,6 +879,74 @@ class FantasyQuery(commands.Cog):
     # Log season - Create Matchup CSV 
     ###################################################
 
+    async def modify_data_frame_winlosstie(self, df_raw:pd.DataFrame):
+        df = df_raw.sort_values(by=['id', 'week']).copy()
+
+        team_group = ['id', 'week', 'points']
+        opponent_lookup = df[team_group].copy()
+        opponent_lookup.rename(
+            columns={
+                'id' : 'opponent_id',
+                'points' : 'opponent_points'
+            },
+            inplace=True
+        )
+
+        left_categories=['opponent_id', 'week']
+        right_categories=['opponent_id', 'week']
+        df_all_points = pd.merge(
+            df,
+            opponent_lookup,
+            left_on=left_categories,
+            right_on=right_categories,
+            how='left'    
+        )
+
+        df_all_points['win'] = np.nan
+        df_all_points['loss'] = np.nan
+        df_all_points['tie'] = np.nan
+
+
+        # Calculate 'win' for all matchups
+        # np.where(condition, value_if_true, value_if_false)
+        df_all_points['win'] = np.where(df_all_points['points'] > df_all_points['opponent_points'], 1, 0 )
+        df_all_points['loss'] = np.where(df_all_points['points'] < df_all_points['opponent_points'], 1, 0)
+        df_all_points['tie'] = np.where(df_all_points['points'] == df_all_points['opponent_points'], 1, 0)
+
+        # week 15 tiebreakers, and playoffs should be ignored
+        weeks_to_ignore_for_sum = (df_all_points['week'] == 15) | (df_all_points['week'] > 16)
+
+        df_all_points['win_for_cumsum'] = np.where(weeks_to_ignore_for_sum, 0, df_all_points['win'])
+        df_all_points['loss_for_cumsum'] = np.where(weeks_to_ignore_for_sum, 0, df_all_points['loss'])
+        df_all_points['tie_for_cumsum'] = np.where(weeks_to_ignore_for_sum, 0, df_all_points['tie'])
+
+        # Sort the DataFrame
+        df_sorted = df_all_points.sort_values(by=['id', 'week']).copy()
+
+        # Calculate RAW cumulative totals
+        # These sums will use the 'for_cumsum' columns, so Week 15 and >16 contribute 0
+        df_sorted['total_wins_raw'] = df_sorted.groupby('id')['win_for_cumsum'].transform(lambda x: x.cumsum().shift(1)).fillna(0)
+        df_sorted['total_losses_raw'] = df_sorted.groupby('id')['loss_for_cumsum'].transform(lambda x: x.cumsum().shift(1)).fillna(0)
+        df_sorted['total_ties_raw'] = df_sorted.groupby('id')['tie_for_cumsum'].transform(lambda x: x.cumsum().shift(1)).fillna(0)
+
+
+        # For weeks that don't count towards the total (Week 15, and >16),
+        # set their 'total_wins_raw' to NaN so ffill can propagate the previous valid total.
+        df_sorted.loc[weeks_to_ignore_for_sum, ['total_wins_raw', 'total_losses_raw', 'total_ties_raw']] = np.nan
+
+        # Now, forward-fill within each group
+        df_sorted['total_wins'] = df_sorted.groupby('id')['total_wins_raw'].ffill().astype(int)
+        df_sorted['total_losses'] = df_sorted.groupby('id')['total_losses_raw'].ffill().astype(int)
+        df_sorted['total_ties'] = df_sorted.groupby('id')['total_ties_raw'].ffill().astype(int)
+
+        # Clean up temporary columns 
+        df_final = df_sorted.drop(columns=[
+            'win_for_cumsum', 'loss_for_cumsum', 'tie_for_cumsum',
+            'total_wins_raw', 'total_losses_raw', 'total_ties_raw'
+        ])
+
+        return df_final
+
     async def construct_matchups_DataFrame(self, start_week:int, end_week:int):
         def add_to_compiled(entry:dict, compiled_dict:list):
             for _, details in entry.items():
@@ -893,7 +966,59 @@ class FantasyQuery(commands.Cog):
         df_matchups_raw[int_values_names] = df_matchups_raw[int_values_names].fillna(-1).astype(int)
         df_matchups_raw['points'] = df_matchups_raw['points'].fillna(0.0).astype(float)
 
-        await self.bot.state.recap_manager.write_csv_formatted(self._matchup_csv, df_matchups_raw)
+        df_final = await self.modify_data_frame_winlosstie(df_matchups_raw)
+
+        await self.bot.state.recap_manager.write_csv_formatted(self._matchup_csv, df_final)
+
+
+    ###################################################
+    # Log season - Standings    
+    ###################################################
+
+    async def add_team_urls(self, entry:dict):
+        async with self.bot.state.fantasy_query_lock:
+            team_list:list[Team] = self.bot.state.fantasy_query.get_league_teams()
+
+        id = entry.get('id')
+        for team in team_list:
+            if id == team.team_id:
+                entry['logo_url'] = team.team_logos[0].url
+                entry['url'] = team.url
+                break
+
+    async def construct_standings_DataFrame(self):
+        async with self.bot.state.league_lock:
+            league = self.bot.state.league
+        current_week = league.current_week
+        filename = self._matchup_standings_template.format(week = current_week)
+
+        if await self.bot.state.recap_manager.path_exists(filename):
+            return
+
+        async with self.bot.state.fantasy_query_lock:
+            standings = self.bot.state.fantasy_query.get_all_standings(self.bot.state.league.num_teams)
+
+        sorted_standings:list[tuple[int,TeamStandings]] = sorted(standings, key = lambda tup: int(tup[1].rank))
+
+        standings_list = []
+        for owner_id, standing in sorted_standings:
+            team_name = await utility.teamid_to_name(owner_id, self.bot.state.persistent_manager)
+            entry = {
+                'id':owner_id,
+                'team_name':team_name,
+                'rank':standing.rank,
+                'streak':standing.streak.value,
+                'playoff_seed': standing.playoff_seed,
+                'wins':standing.outcome_totals.wins,
+                'losses':standing.outcome_totals.losses,
+                'ties':standing.outcome_totals.ties,
+                'win_percentage': standing.outcome_totals.percentage,
+            }
+            await self.add_team_urls(entry)
+            standings_list.append(entry)
+
+        df = pd.DataFrame(standings_list)
+        await self.bot.state.recap_manager.write_csv_formatted(filename, df)
 
 
     ###################################################
@@ -917,6 +1042,7 @@ class FantasyQuery(commands.Cog):
         # Store Data CSV for Graphs
         await self.construct_matchups_DataFrame(fantasy_league_info.start_week, end_week)
         await self.construct_roster_DataFrame(fantasy_league_info.start_week, end_week)
+        await self.construct_standings_DataFrame()
         logger.info("[log_season] - Season log completed.")
 
 
@@ -930,12 +1056,115 @@ class FantasyQuery(commands.Cog):
         if current_week <= 1:
             logger.info('[FantasyQuery][store_data] - Week 1 not concluded.')
             return
-        
+
         await self.log_season(fantasy_league_info)
 
 
     ###################################################
-    # Season Recap      
+    # Season Recap - Rankings Visualization
+    ###################################################
+
+    async def create_bump_chart_plot(self, df):
+        def calculate_rank(group):
+            group_sorted = group.sort_values(by=['total_wins', 'points'], ascending = [False, False])
+            group_sorted['rank'] = range(1, len(group_sorted) + 1)
+            return group_sorted
+
+        # Narrow data to necessary columns
+        necessary = ['id', 'name', 'week', 'total_wins', 'win', 'loss', 'tie', 'points']
+        df_narrow = df[necessary].copy()
+        df_narrow = df_narrow[df_narrow['week'] < 15]
+
+        # Calculate Rank for plottable DataFrame
+        df_plot = df_narrow.groupby('week').apply(calculate_rank, include_groups=False).reset_index(level='week')
+        return df_plot
+
+
+    async def plot_rank_bumpchart(self, df):
+        df_copy = df.copy()
+        # Gather all necessary data
+        df_plot = await self.create_bump_chart_plot(df)
+
+        # Draw
+        fig, ax = plt.subplots(figsize = (18,10), facecolor="#F0F0F0")
+
+        # Pallette
+        hue_order_for_coloring = sorted(df_plot['name'].unique())
+        palette = sns.husl_palette(n_colors=len(hue_order_for_coloring), h=0.01, s=0.9, l=0.4)
+        name_to_color_map = dict(zip(hue_order_for_coloring, palette))
+
+        sns.lineplot(
+            data=df_plot, 
+            x='week',
+            y='rank',
+            hue='name', 
+            units='id', 
+            marker='o',         
+            palette=palette,    
+            lw=2,               
+            markersize=8,
+            ax=ax,
+            hue_order=hue_order_for_coloring,
+            legend=False   
+        )
+
+        # rank 1 at top
+        ax.invert_yaxis() # Invert y-axis
+
+        # labels
+        max_rank_display = df_plot['rank'].max()
+        ax.set_facecolor("#DDEEEE")
+        ax.set_yticks(range(1, max_rank_display + 1)) 
+        ax.set_xticks(range(df_plot['week'].min(), df_plot['week'].max() + 1)) 
+        ax.set_title('Regular Season - Team Ranks', fontsize=16) 
+        ax.set_xlabel('Week', fontsize=12) 
+        ax.set_yticklabels([]) 
+        ax.set_ylabel('Rank', fontsize=12) 
+        ax.grid(True, linestyle='--', alpha=0.7) 
+
+        # annotations
+        unique_ids:list = df_plot['id'].unique()
+        id_to_name_map = df_plot[['id', 'name']].drop_duplicates(subset=['id'], keep='last').set_index('id')['name'].to_dict()
+
+        players_for_annotation = []
+        for player_id in unique_ids:
+            player_name = id_to_name_map.get(player_id)
+            players_for_annotation.append({'id': player_id, 'name': player_name})
+        
+        for player_data in players_for_annotation:
+            player_id = player_data['id']
+            player_name_for_label = player_data['name'] 
+
+            # Determine the color based on the player's name used in the label
+            line_color = name_to_color_map.get(player_name_for_label, 'black') 
+
+            # Annotate start rank
+            start_data = df_plot[(df_plot['id'] == player_id) & (df_plot['week'] == df_plot['week'].min())]
+            if not start_data.empty:
+                ax.text(
+                        start_data['week'].iloc[0] - 0.75, start_data['rank'].iloc[0], player_name_for_label, 
+                        ha='right', va='center', fontsize=12, color=line_color
+                    )
+
+            # Annotate end rank
+            end_data = df_plot[(df_plot['id'] == player_id) & (df_plot['week'] == df_plot['week'].max())]
+            if not end_data.empty:
+                ax.text(
+                        end_data['week'].iloc[0] + 0.75, end_data['rank'].iloc[0], player_name_for_label, 
+                        ha='left', va='center', fontsize=12, color=line_color
+                    )
+
+        fig.tight_layout() 
+        
+        # Save the figure to the globally defined output directory
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+        buf.seek(0)
+        return buf
+
+
+    ###################################################
+    # Season Recap - Radial Cumulative
     ###################################################
 
     async def create_points_DataFrame(self, df):
@@ -1063,23 +1292,173 @@ class FantasyQuery(commands.Cog):
         return gif_buffer
 
 
+    ###################################################
+    # Season Recap - Podium
+    ###################################################
+
+    async def load_image_from_url(self, url, placeholder_url="https://placehold.co/80x80/cccccc/000000?text=IMG+Error"):
+        try:
+            response = requests.get(url, timeout=5)
+            response.raise_for_status() # Raise an exception for bad status codes
+            img_array = imageio.v3.imread(BytesIO(response.content))
+            return img_array
+        except (requests.exceptions.RequestException, IOError) as e: # Removed Image.UnidentifiedImageError as it's PIL-specific
+            logger.error(f"Warning: Could not load image from {url}. Error: {e}. Using placeholder.")
+            # Load placeholder image if primary fails
+            placeholder_response = requests.get(placeholder_url, timeout=5)
+            placeholder_response.raise_for_status()
+            placeholder_img_array = imageio.v3.imread(BytesIO(placeholder_response.content))
+            return placeholder_img_array
+
+
+    async def prepare_ranks_dataframe(self, df_raw):
+        df = df_raw.copy()
+
+        # generate plot dataframe 
+        df = df.sort_values(by=['rank'])
+        number_of_teams = len(df)
+
+        max_y = 100 
+        min_y = 10 
+        log_spaced_values = np.linspace(max_y, min_y, number_of_teams)
+        df['y_level'] = log_spaced_values
+
+        return df
+
+
+    async def plot_images_podium(self, df_raw):
+        df = await self.prepare_ranks_dataframe(df_raw)
+
+        fig, ax = plt.subplots(figsize=(16, 10),facecolor="#DDEEEE") # Adjust figure size for better aspect ratio
+
+        # Colors for podium
+        podium_colors = {
+            1: '#FFD700', # Gold for 1st
+            2: '#B0C4DE', # Silver for 2nd
+            3: '#B8860B'  # Bronze for 3rd
+        }
+        other_rank_color = 'rosybrown' 
+        bar_colors = [podium_colors.get(rank, other_rank_color) for rank in df['rank']]
+
+        # define bars
+        bar_width = .9
+        bars = ax.bar(df['rank'], df['y_level'], color=bar_colors, width=bar_width )
+
+        ax.set_facecolor("#DDEEEE")
+        ax.set_title('Team Rankings', fontsize=16, pad=10) # Add a title
+        ax.set_xlabel('', fontsize=12) # Label the x-axis as Rank
+        ax.set_xticks(df['rank'])
+        ax.set_xticklabels([])
+
+        # padding
+        x_padding_factor = 0.8 # Adjust this (e.g., 0.5 to 1.0) for more/less padding
+        ax.set_xlim(df['rank'].min() - x_padding_factor, df['rank'].max() + x_padding_factor)
+        max_image_display_height_in_data_units = df['y_level'].max() * 0.2
+        # Modify this line in your code:
+        ax.set_ylim(0, df['y_level'].max() + max_image_display_height_in_data_units * 1.5)
+
+        ax.set_ylabel('')
+        ax.set_yticklabels([])
+        ax.tick_params(axis='y', length=0)
+        ax.spines['left'].set_visible(False)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+
+        ax.set_axisbelow(True)
+
+        vertical_space_for_image_and_text = df['y_level'].max() * 0.25 # e.g., 25% of tallest bar's height
+
+        # Add Team Logo images
+        for i, bar in enumerate(bars):
+            player_data = df.iloc[i]
+            image_url = player_data['logo_url']
+
+            img_array = await self.load_image_from_url(image_url) 
+            
+            # Calculate image position (extent for ax.imshow)
+            x_center = bar.get_x() + bar.get_width() / 2
+            y_bottom = bar.get_height() + (df['y_level'].max() * 0.02) # Small offset above bar
+        
+            ax.autoscale(False)
+            target_display_width = 80 # Match or slightly less than bar width
+            img_actual_width = img_array.shape[1]  # pixel width
+            zoom = target_display_width / img_actual_width
+            imagebox = OffsetImage(img_array, zoom=zoom, interpolation='bilinear')
+            y_bottom_of_image = bar.get_height() + (df['y_level'].max() * 0.02) 
+            ab = AnnotationBbox(
+                imagebox, 
+                (x_center, y_bottom), 
+                frameon=False, 
+                box_alignment=(0.5, 0)
+            )
+            ax.add_artist(ab)
+
+            text_y_pos = y_bottom_of_image + (vertical_space_for_image_and_text * 0.8) # Place text above image
+            
+            ax.text(x_center, text_y_pos,
+                    f"{player_data['team_name']}",
+                    ha='center', va='bottom', fontsize=12, color='black',
+                )
+
+        fig.tight_layout()
+
+        # Save the figure to the globally defined output directory
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+        buf.seek(0)
+        return buf
+
+
     @app_commands.command(name="season_recap",description="Season Recap.")
     async def season_recap(self,interaction:discord.Interaction):
         await interaction.response.defer()
+        async with self.bot.state.league_lock:
+            league = self.bot.state.league
+        current_week = league.current_week
+
+        embed_list = []
+
+        # Generate podium embed
+        podium_filename=self._player_standings_template.format(week=current_week)
+        df_podium = await self.bot.state.recap_manager.load_csv_formatted(podium_filename)
+        podium_buff = await self.plot_images_podium(df_podium)
+
+        podium_filename = 'podium.png'
+        podium_file = discord.File(podium_buff, filename=podium_filename)
+        podium_embed = discord.Embed(title = "Season Recap", description = "Regular Season Rankings", color = self.emb_color)
+        podium_embed.set_image(url=f'attachment://{podium_filename}')
+        embed_list.append((podium_embed, podium_file))
+
+
+        # Generate rankings visualization for non-playoff weeks
+        df_raw = await self.bot.state.recap_manager.load_csv_formatted(self._matchup_csv)
+        df_matchups_raw = df_raw.copy()
+        bump_buff = await self.plot_rank_bumpchart(df_matchups_raw)
+
+        bump_filename = 'season_bump_chart.png'
+        bump_file = discord.File(bump_buff, filename=bump_filename)
+        bump_embed = discord.Embed(title = "Season Recap", description = "Regular Season Rankings", color = self.emb_color)
+        bump_embed.set_image(url=f'attachment://{bump_filename}')
+        embed_list.append((bump_embed, bump_file))
+
 
         # Generate cumulative points chart
-        df = await self.bot.state.recap_manager.load_csv_formatted(self._matchup_csv)
+        df = df_raw.copy()
         buffer_list:list[BytesIO] = await self.generate_cumulative_frames(df)
         if buffer_list:
-            filename = 'cumulative_points.gif'
+            cumul_filename = 'cumulative_points.gif'
             gif_buffer = await self.convert_buffers_list_to_gif_buffer(buffer_list)
-            file = discord.File(gif_buffer, filename=filename)
-            embed = discord.Embed(title = "", description = "", color = self.emb_color)
-            embed.set_image(url=f'attachment://{filename}')
-
-            await interaction.followup.send(embed=embed, file=file)
+            cumul_file = discord.File(gif_buffer, filename=cumul_filename)
+            embed_radial = discord.Embed(title = "Season Recap", description = "Total Cumulative Points Earned", color = self.emb_color)
+            embed_radial.set_image(url=f'attachment://{cumul_filename}')
+            embed_list.append((embed_radial, cumul_file))
+            
         else:
-            await interaction.followup.send("Failed to generate gif.",ephemeral=False)
+            await interaction.followup.send("Failed to generate cumulative radial gif.",ephemeral=False)
+
+        for file_embed, file in embed_list:
+             await interaction.followup.send(embed=file_embed, file=file)
 
 
     ###################################################
@@ -1087,7 +1466,6 @@ class FantasyQuery(commands.Cog):
     ###################################################
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-
         message = ""
         if isinstance(error, app_commands.CommandNotFound):
             message = "This command does not exist."
