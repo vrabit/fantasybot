@@ -19,6 +19,9 @@ import logging
 import logging.config
 import json
 
+import warnings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+
 
 current_dir = Path(__file__).parent
 

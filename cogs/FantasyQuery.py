@@ -993,6 +993,7 @@ class FantasyQuery(commands.Cog):
         filename = self._matchup_standings_template.format(week = current_week)
 
         if await self.bot.state.recap_manager.path_exists(filename):
+            logger.info(f"[FantasyQuery][log_season] - {filename} already exists.")
             return
 
         async with self.bot.state.fantasy_query_lock:
@@ -1329,7 +1330,7 @@ class FantasyQuery(commands.Cog):
     async def plot_images_podium(self, df_raw):
         df = await self.prepare_ranks_dataframe(df_raw)
 
-        fig, ax = plt.subplots(figsize=(16, 10),facecolor="#DDEEEE") # Adjust figure size for better aspect ratio
+        fig, ax = plt.subplots(figsize=(18, 10),facecolor="#DDEEEE") # Adjust figure size for better aspect ratio
 
         # Colors for podium
         podium_colors = {
@@ -1426,7 +1427,7 @@ class FantasyQuery(commands.Cog):
 
         podium_filename = 'podium.png'
         podium_file = discord.File(podium_buff, filename=podium_filename)
-        podium_embed = discord.Embed(title = "Season Recap", description = "Regular Season Rankings", color = self.emb_color)
+        podium_embed = discord.Embed(title = "Season Recap", description = "Post Season Rankings", color = self.emb_color)
         podium_embed.set_image(url=f'attachment://{podium_filename}')
         embed_list.append((podium_embed, podium_file))
 
@@ -1438,7 +1439,7 @@ class FantasyQuery(commands.Cog):
 
         bump_filename = 'season_bump_chart.png'
         bump_file = discord.File(bump_buff, filename=bump_filename)
-        bump_embed = discord.Embed(title = "Season Recap", description = "Regular Season Rankings", color = self.emb_color)
+        bump_embed = discord.Embed(title = "Season Recap", description = "Regular Post Rankings", color = self.emb_color)
         bump_embed.set_image(url=f'attachment://{bump_filename}')
         embed_list.append((bump_embed, bump_file))
 
