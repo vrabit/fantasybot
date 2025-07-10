@@ -24,7 +24,8 @@ class MaintainFantasy(commands.Cog):
 
         self.current_dir = Path(__file__).parent
         self.parent_dir = self.current_dir.parent
-        self._player_ids_filename = 'player_ids.csv'
+        self._player_ids_filename = bot.state.player_ids_filename
+        self._private_filename = bot.state.private_filename
 
 
     ###################################################
@@ -85,7 +86,7 @@ class MaintainFantasy(commands.Cog):
                 
             except Exception as e:
                 logger.error(f'[MaintainFantasy] - Error: {e}')
-                logger.error('[MaintainFantasy] - Verify elements within yfpyauth/config.json and yfpyauth/private.json')
+                logger.error(f'[MaintainFantasy] - Verify elements within yfpyauth/config.json and yfpyauth/{self._private_filename}')
                 await self.bot.close()
                 return
             

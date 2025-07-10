@@ -55,13 +55,14 @@ class MaintainVault(commands.Cog):
         self._default_wager_bonus:int = None
 
         # files
-        self._members_filename = 'members.json'
-        self._funds_distribution_log = "weekly_funds.json"
-        self._week_dates_filename = 'week_dates.json'
-        self._vault_accounts_filename = 'vault_accounts.json'
-        self._vault_slap_contracts_filename = 'vault_slap_contracts.json'
-        self._vault_wager_contracts_filename = 'vault_wager_contracts.json'
-        self._challenge_filename = "challenge_config.json"
+        self._members_filename = bot.state.members_filename
+        self._funds_distribution_log = bot.state.weekly_funds_filename
+        self._week_dates_filename = bot.state.week_dates_filename
+        self._vault_accounts_filename = bot.state.vault_accounts_filename
+        self._vault_slap_contracts_filename = bot.state.vault_slap_contracts_filename
+        self._vault_wager_contracts_filename = bot.state.vault_wager_contracts_filename
+        self._challenge_filename = bot.state.challenge_config_filename
+        
 
 
     ###################################################
@@ -599,7 +600,7 @@ class MaintainVault(commands.Cog):
         members:list[dict] = await self._persistent_manager.load_json(filename = self._members_filename)
 
         if not members:
-            raise AttributeError('[MaintainVault][construct_new_bank_accounts] - Error: expected members.json to be populated.' )
+            raise AttributeError(f'[MaintainVault][construct_new_bank_accounts] - Error: expected {self._members_filename} to be populated.' )
         else:
             accounts:dict[str, Vault.BankAccount] = {}
             for entry in members:

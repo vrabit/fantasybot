@@ -23,9 +23,9 @@ class PlayerIDs(commands.Cog):
         self._players = None
         self._players_lock = asyncio.Lock()
 
-        self.filepath = self.parent_dir / 'persistent_data'/ 'player_data.json'
-        self.filename = 'player_data.json'
-        self.csv_filename = 'player_ids.csv'
+        self._player_data_filename = bot.state.player_data_filename
+        self._player_data_filepath = self.parent_dir / 'persistent_data'/ bot.state.player_data_filename
+        self.player_ids_filename = bot.state.player_ids_filename
 
 
     ###################################################
@@ -61,8 +61,7 @@ class PlayerIDs(commands.Cog):
                 if found:
                     break
 
-            await self.bot.state.persistent_manager.write_json(self.filename, self._players)
-            #utility.store_player_ids(self._players, self.filename)
+            await self.bot.state.persistent_manager.write_json(self._player_data_filename, self._players)
             start += 25
 
             # pace requests to avoid rate limit
@@ -79,7 +78,7 @@ class PlayerIDs(commands.Cog):
         await interaction.response.defer()
         if self._players is not None:
             # Update player csv data file
-            await self.bot.state.persistent_manager.write_simple_csv(filename=self.csv_filename, data=self._players)
+            await self.bot.state.persistent_manager.write_simple_csv(filename=self.player_ids_filename, data=self._players)
             #utility.store_players(self._players)
                       
             await interaction.followup.send('Player CSV file Created', ephemeral=True)
@@ -91,7 +90,7 @@ class PlayerIDs(commands.Cog):
     @app_commands.command(name="store_player_info", description= "Request and store ALL NFL player Info in batches")
     async def collect_IDs(self, interaction: discord.Interaction):
         await interaction.response.send_message('Collection Triggered')
-        logger.info(f'Collection Triggered: Will be stored within {self.filepath}')
+        logger.info(f'Collection Triggered: Will be stored within {self._player_data_filepath}')
         await self.request_player_info()
         
 
@@ -150,8 +149,7 @@ class PlayerIDs(commands.Cog):
         await self.wait_for_fantasy()
 
         async with self._players_lock:
-            self._players = await self.bot.state.persistent_manager.load_json(self.filename)
-        #await utility.load_player_ids(self.filename)
+            self._players = await self.bot.state.persistent_manager.load_json(self._player_data_filename)
         logger.info('[PlayerIDs] - Ready')
 
 

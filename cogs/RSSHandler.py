@@ -32,9 +32,9 @@ class RSSHandler(commands.Cog):
         self.feed_queue:deque = deque(maxlen=self.MAX_QUEUE)
         self.feed_queue_lock = asyncio.Lock()
 
-        self._members_filename = 'members.json'
-        self._private_filename = 'private.json'
-        self._rss_queue_filename = 'rss_queue.json'
+        self._members_filename = bot.state.members_filename
+        self._private_filename = bot.state.private_filename
+        self._rss_queue_filename = bot.state.rss_queue_filename
 
 
     ###################################################

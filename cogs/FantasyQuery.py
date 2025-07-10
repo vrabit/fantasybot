@@ -38,13 +38,13 @@ class FantasyQuery(commands.Cog):
         self._ready = False
 
         # loaded files
-        self.player_ids_filename = 'player_ids.csv'
-        self.members_filename = 'members.json'
-        self._private_filename = 'private.json'
+        self.player_ids_filename = bot.state.player_ids_filename
+        self.members_filename = bot.state.members_filename
+        self._private_filename = bot.state.private_filename
 
         # generated files
-        self._roster_csv = 'roster_value.csv'
-        self._matchup_csv = 'matchup_data.csv'
+        self._roster_csv = bot.state.roster_csv
+        self._matchup_csv = bot.state.matchup_csv
 
         # bot embed color
         self.emb_color = self.bot.state.emb_color
@@ -52,13 +52,12 @@ class FantasyQuery(commands.Cog):
         self.loser_color = self.bot.state.loser_color
 
         # Season Dates
-        self._week_dates_filename = 'week_dates.json'
+        self._week_dates_filename = bot.state.week_dates_filename
 
         # File Name Templates
-        self.roster_json_template = 'week_{week}_roster.json'
-        self.matchup_json_template = "week_{week}_matchup.json"
-        self._matchup_standings_template = 'week_{week}_data.csv'
-        self._player_standings_template = 'week_{week}_data.csv'
+        self.roster_json_template = bot.state.roster_json_template
+        self.matchup_json_template = bot.state.matchup_json_template
+        self._matchup_standings_template = bot.state.matchup_standings_template
 
 
     ###################################################
@@ -1421,7 +1420,7 @@ class FantasyQuery(commands.Cog):
         embed_list = []
 
         # Generate podium embed
-        podium_filename=self._player_standings_template.format(week=current_week)
+        podium_filename=self._matchup_standings_template.format(week=current_week)
         df_podium = await self.bot.state.recap_manager.load_csv_formatted(podium_filename)
         podium_buff = await self.plot_images_podium(df_podium)
 

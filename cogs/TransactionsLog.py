@@ -25,8 +25,8 @@ class TransactionsLog(commands.Cog):
 
         self.emb_color = self.bot.state.emb_color
 
-        self._transactions_filename = 'transactions.json'
-        self._private_filename = 'private.json'
+        self._transactions_filename = bot.state.transactions_filename
+        self._private_filename = bot.state.private_filename
 
         self.transactions:dict = None
 

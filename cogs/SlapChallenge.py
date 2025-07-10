@@ -30,15 +30,15 @@ class SlapChallenge(commands.Cog):
         # bot embed color
         self.emb_color = self.bot.state.emb_color
 
-        self._private_filename = 'private.json'
-        self._week_dates_filename = 'week_dates.json'
-        self._challenges_filename = 'challenges.json'
+        self._private_filename = bot.state.private_filename
+        self._week_dates_filename = bot.state.week_dates_filename
+        self._challenges_filename = bot.state.challenges_filename
         
         # vault
         self.vault:Vault = self.bot.state.vault
 
         # Slap 
-        self._challenge_filename = 'challenge_config.json'
+        self._challenge_filename = self.bot.state.challenge_config_filename
         self.loser_role_name = None
         self.denier_role_name = None
         self._challenge_send_link = None
@@ -53,7 +53,7 @@ class SlapChallenge(commands.Cog):
 
     class AcceptDenyChallenge(discord.ui.View):
 
-        def __init__(self, challenger:int, challengee:int, amount:int, week:int, expiration_date:datetime, vault:Vault, challenge_accept_link:str, challenge_deny_link:str, denier_role_name:str):
+        def __init__(self, challenges_filename, challenger:int, challengee:int, amount:int, week:int, expiration_date:datetime, vault:Vault, challenge_accept_link:str, challenge_deny_link:str, denier_role_name:str):
             super().__init__(timeout = 28800) # 8 hrs
             self.challenger = challenger
             self.challengee = challengee
@@ -68,7 +68,7 @@ class SlapChallenge(commands.Cog):
             # bot embed color
             self.emb_color = discord.Color.from_rgb(225, 198, 153)
             self.denier_role_name = denier_role_name
-            self._challenges_filename = 'challenges.json'
+            self._challenges_filename = challenges_filename
 
 
         ##############################################################
@@ -229,6 +229,7 @@ class SlapChallenge(commands.Cog):
 
         # create view and store it for the future
         view = self.AcceptDenyChallenge(
+            self._challenge_filename,
             challenger=challenger_discord_id,
             challengee=challengee_discord_id,
             amount=amount, 

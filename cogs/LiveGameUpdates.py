@@ -35,7 +35,7 @@ class LiveGameUpdates(commands.Cog):
         self._nfl_team_info_url = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/teams'
 
         # filenames
-        self._team_info_filename = 'espn_team_info.json'
+        self._team_info_filename = bot.state.team_info_filename
 
         # loaded data
         self._team_value_map = None

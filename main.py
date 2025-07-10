@@ -116,6 +116,40 @@ class BotState:
         # shared vault 
         self.vault:Vault = None
 
+        # persistent_manager filenames
+        self.player_ids_filename = 'player_ids.csv'
+        self.members_filename = 'members.json'
+        self.rss_queue_filename = 'rss_queue.json'
+        self.player_data_filename = 'player_data.json'
+        self.week_dates_filename = 'week_dates.json'
+        self.transactions_filename = 'transactions.json'
+        self.weekly_funds_filename = "weekly_funds.json"
+        self.challenges_filename = 'challenges.json'
+
+        # recap_manager filenames
+        self.roster_csv = 'roster_value.csv'
+        self.matchup_csv = 'matchup_data.csv'
+
+        # recap_manager template filenames
+        self.roster_json_template = 'week_{week}_roster.json'
+        self.matchup_json_template = "week_{week}_matchup.json"
+        self.matchup_standings_template = 'week_{week}_data.csv'
+
+        # discord_auth_manager filenames
+        self.private_filename = 'private.json'
+
+        # live_manager filenames
+        self.team_info_filename = 'espn_team_info.json'
+
+        # settings_manager filenames
+        self.challenge_config_filename = 'challenge_config.json'
+        self.trade_value_config_filename = "trade_value_config.json"
+
+        # vault_manager filenames
+        self.vault_accounts_filename = 'vault_accounts.json'
+        self.vault_slap_contracts_filename = 'vault_slap_contracts.json'
+        self.vault_wager_contracts_filename = 'vault_wager_contracts.json'
+
 bot.state = BotState(guild_id=guild_id, guild=guild)
 
 

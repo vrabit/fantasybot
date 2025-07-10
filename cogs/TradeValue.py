@@ -46,11 +46,11 @@ class TradeValue(commands.Cog):
         self.trades_receives = {}
 
         # config
-        self._trade_value_config_filename = "trade_value_config.json"
+        self._trade_value_config_filename = bot.state.trade_value_config_filename
 
         # Log data
-        self._roster_csv = 'roster_value.csv'
-        self._matchup_csv = 'matchup_data.csv'
+        self._roster_csv = bot.state.roster_csv
+        self._matchup_csv = bot.state.matchup_csv
 
 
     def request_values(self, url ="https://api.fantasycalc.com/values/current?isDynasty=True&numQbs=1&numTeams=10&ppr=0.5"):
