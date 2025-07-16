@@ -15,6 +15,9 @@ __pycache__/
 *.json
 !*.json.example
 
+*.csv
+!persistent_data/player_ids.csv
+
 !logging_config.json
 !challenge_config.json
 !trade_value_config.json
