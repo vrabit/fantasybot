@@ -38,8 +38,10 @@ async def load_week_dates(bot, week_dates_filename:str = _week_dates_filename) -
         async with bot.state.fantasy_query_lock:
             dates_dict = await construct_date_list(bot.state.fantasy_query.get_game_weeks_by_game_id())
         await bot.state.persistent_manager.write_json(filename=week_dates_filename, data=dates_dict)
+        logger.info("[FantasyHelper] - Week Dates File Created.")
 
     loaded_dates = await bot.state.persistent_manager.load_json(filename=week_dates_filename)
+    logger.info("[FantasyHelper] - Week Dates File Loaded.")
     return loaded_dates
 
 
