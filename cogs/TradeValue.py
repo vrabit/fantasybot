@@ -1,6 +1,6 @@
 import discord
 from discord.ext import tasks, commands
-from discord import app_commands
+from discord import app_commands, PollLayoutType
 from typing import Optional
 
 from pathlib import Path
@@ -23,6 +23,7 @@ import matplotlib.gridspec as gridspec
 
 from datetime import datetime, timedelta
 import utility
+import aiohttp
 
 import logging
 logger = logging.getLogger(__name__)
@@ -47,16 +48,23 @@ class TradeValue(commands.Cog):
 
         # config
         self._trade_value_config_filename = bot.state.trade_value_config_filename
+        self._trade_transactions_filename = bot.state.trade_transactions_filename
 
         # Log data
         self._roster_csv = bot.state.roster_csv
         self._matchup_csv = bot.state.matchup_csv
 
 
-    def request_values(self, url ="https://api.fantasycalc.com/values/current?isDynasty=True&numQbs=1&numTeams=10&ppr=0.5"):
-        response = requests.get(url)
+    async def request_values(self, url ="https://api.fantasycalc.com/values/current?isDynasty=True&numQbs=1&numTeams=10&ppr=0.5"):
+        
         try:
-            player_values = response.json()
+            async with self.bot.state.session_lock:
+                async with self.bot.state.session.get(url) as response:
+                    player_values = await response.json()
+            
+        #response = requests.get(url)
+        
+            #player_values = response.json()
         except ValueError:
             logger.error("[TradeValue] - Error: Received invalid response from api.fantasycalc")
         except Exception as e:
@@ -135,6 +143,7 @@ class TradeValue(commands.Cog):
             newArr[i] = f"{i}"
 
         return newArr
+
 
     async def get_names_values(self, players:deque):
         player_names:list = []
@@ -516,11 +525,152 @@ class TradeValue(commands.Cog):
         fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
         buf.seek(0) # reset to start
         return buf
+    
+
+    ###################################################
+    # add players to compare    
+    ###################################################
+
+    async def refine_transaction_df(self, transaction_id:int):
+        df_raw = await self.bot.state.persistent_manager.load_csv_formatted(filename=self._trade_transactions_filename)
+        df = df_raw.copy()
+
+        df['id'] = pd.to_numeric(df['id'], errors='coerce').fillna(-1).astype(int)
+        df['value'] = pd.to_numeric(df['value'], errors='coerce').fillna(-1).astype(int)
+        
+        exists = (df['id'] == transaction_id).any()
+        if not exists:
+            return None
+
+        df = df[df['id'] == transaction_id]
+        df['cumulative_value'] =  df.groupby(['source_team_key'])['value'].cumsum()
+        df = df.sort_values(by='cumulative_value', ascending=False).reset_index(drop=True)
+
+        team_names:list =df['source_team'].unique()
+
+        return df, team_names[0], team_names[1]
+
+
+    async def create_transaction_graph(self, transaction_id:int) -> tuple[Optional[str], Optional[str]]:
+        df_data, team_1_name, team_2_name = await self.refine_transaction_df(transaction_id)
+        if df_data is None:
+            return None
+        
+        fig = plt.figure(figsize=(12, 8), facecolor="#FDF5E2")
+        ax = sns.barplot(
+            data=df_data,
+            x='cumulative_value',
+            y='source_team',
+            hue='name',
+            orient='h',
+            palette='husl',
+            dodge=False,
+            ax=fig.gca()
+        )
+        ax.tick_params(axis='x', labelsize=12)
+        ax.tick_params(axis='y', labelsize=12)
+
+        ax.set_xlabel('Value', fontsize=12, color='gray', labelpad=10, fontweight='bold')
+        ax.set_title('', fontsize=14, color='gray', pad=15, fontweight='bold')
+        ax.set_xlim(0,df_data['cumulative_value'].max() + 2000)
+        
+        ax.set_facecolor("#E6F2EB")
+        plt.title(f'Trade Value')
+        plt.xlabel('Total Trade Value')
+        plt.ylabel('')
+        plt.tight_layout()
+
+        # add labels to bars
+        max_team_key = df_data['source_team_key'].iloc[0]
+
+        
+
+        for _, row in enumerate(df_data.itertuples()):
+        
+            if row.value < 1000:
+                continue
+
+            label = f'Total\n{row.cumulative_value:.0f}\n\n{row.name.split(' ')[-1]}\n{row.value:.0f}'
+            text_x_pos = row.cumulative_value - 1 if row.cumulative_value > 0 else 0.5
+            
+            if row.source_team_key == max_team_key:
+                pos = 0
+            else:
+                pos = 1
+
+            ax.text(
+                text_x_pos,
+                pos,
+                label,
+                va='center',
+                ha='right',
+                fontsize=14,
+                color= 'white',
+                weight='bold'
+            )
+
+        plt.legend(
+            title='Player', 
+            fontsize=10,
+            title_fontsize=12,
+            loc='lower right'
+        )
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+        buf.seek(0) # reset to start
+        return buf, team_1_name, team_2_name
 
 
     ###################################################
     # add players to compare    
     ###################################################
+
+    async def create_poll(self, question:str, answers:list, hours:int = 8, layout:int = 1, multiple=False):
+        if layout != 1 and layout != 3:
+            layout = 1
+
+        EMOJI = {
+            1:'1️⃣',
+            2:'2️⃣',
+            3:'3️⃣',
+            4:'4️⃣'
+        }
+
+        duration = timedelta(hours=hours)
+        poll_layout = PollLayoutType(layout)
+
+        poll = discord.Poll(question=question, duration=duration, layout_type=poll_layout, multiple=multiple)
+
+        for i, answer in enumerate(answers):
+            poll.add_answer(text=answer, emoji = EMOJI.get(i+1))
+
+        return poll
+
+
+    @app_commands.command(name="evaluate_transaction",description="Evaluate trade value")
+    @app_commands.describe(transaction_id="Transaction ID number")
+    async def evaluate_transaction(self,interaction:discord.Interaction, transaction_id: int):
+        await interaction.response.defer(ephemeral=False)
+
+        try:
+            buf, team_1_name, team_2_name = await self.create_transaction_graph(transaction_id)
+        except Exception as e:
+            await interaction.followup.send('Error: Failed to create graph.')
+            logger.error(f'[TradeValue][trade_evaluate] - Error: {e}')
+            return
+        
+        if buf:
+            filename = 'trade_value.png'
+            file = discord.File(fp=buf, filename=filename)
+            embed = discord.Embed(title = "",description = "",color = self.emb_color)
+            embed.set_image(url=f"attachment://{filename}")
+
+            await interaction.followup.send(embed=embed, file=file)  
+            poll = await self.create_poll("Who Won?", [team_1_name,team_2_name], layout=1)
+            await interaction.followup.send(poll=poll)  
+        else:
+            await interaction.followup.send("Failed")
+
 
     @app_commands.command(name="trade_send",description="Add player to sender side for comparison")
     @app_commands.describe(player="NFL player name")
@@ -663,7 +813,7 @@ class TradeValue(commands.Cog):
         if self.date is None or self.date != current_date:
             logger.info('[TradeValue] - Updating Trade Values')
             async with self.bot.state.player_values_lock:
-                self.bot.state.player_values = self.request_values(url=self.bot.state.trade_value_url)
+                self.bot.state.player_values = await self.request_values(url=self.bot.state.trade_value_url)
 
                 async with self.bot.state.value_map_lock:
                     self.bot.state.value_map = self.format_values(self.bot.state.player_values)

@@ -6,11 +6,13 @@ from pathlib import Path
 from yfpy import utils
 from yfpy.models import League, Transaction
 
+from difflib import get_close_matches
 from datetime import datetime
 import utility
 import asyncio
 
 import json
+import pandas as pd
 
 import logging
 logger = logging.getLogger(__name__)
@@ -27,8 +29,115 @@ class TransactionsLog(commands.Cog):
 
         self._transactions_filename = bot.state.transactions_filename
         self._private_filename = bot.state.private_filename
+        self._trade_transactions_filename = bot.state.trade_transactions_filename
+
+        self._persistent_manager = bot.state.persistent_manager
 
         self.transactions:dict = None
+
+
+    ###################################################
+    # Update Trade Table      
+    ###################################################
+
+    async def get_player_value(self, full_name:str):
+        async with self.bot.state.value_map_lock:
+            closest_key = get_close_matches(full_name,self.bot.state.value_map,n=1,cutoff=0.6)
+
+        if not closest_key:
+            return None
+
+        async with self.bot.state.value_map_lock:
+            player_obj = self.bot.state.value_map[closest_key[0]]
+        
+        return player_obj['redraftValue']
+
+
+    async def formatted_trade_entry(self, player:dict, id:str, timestamp):
+
+        transaction_data:dict = player.get('transaction_data')
+        if not transaction_data:
+            return None
+
+        if transaction_data.get('type') != 'trade':
+            return None
+
+        player_name = player.get('name')
+
+        if not player_name:
+            return None
+
+        player_value = await self.get_player_value(player_name.get('full'))
+        trade = {
+            'source_team': transaction_data.get('source_team_name'),
+            'source_team_key': transaction_data.get('source_team_key'),
+            'destination_team': transaction_data.get('destination_team_name'),
+            'destination_team_key': transaction_data.get('destination_team_key'),
+            'name': player_name.get('full'),
+            'id': id,
+            'value': player_value,
+            'timestamp': timestamp
+        }
+        return trade
+
+
+    async def parse_trade_players(self,players:list[dict] | dict, id:str, timestamp:str):
+        if not players:
+            return None
+
+        entries = []
+        try:
+            if isinstance(players,dict):  
+                if not players.get('player'):
+                    return None
+                
+                trade = await self.formatted_trade_entry(players.get('player'), id, timestamp)
+
+                if not trade:
+                    return None
+                entries.append(trade) 
+            else:
+                for player in players:
+                    if not player.get('player'):
+                        return None
+
+                    trade = await self.formatted_trade_entry(player.get('player'), id, timestamp)
+
+                    if not trade:
+                        return None
+                    entries.append(trade)
+        except Exception as e:
+            logger.error(f'[TransactionLog] - Error: {e}')
+
+        return entries
+
+
+    async def transactions_dict_to_list(self):
+        all_trades:list = []
+        for id,_ in self.transactions.items():
+            transaction:dict = await self.unpack_transaction(id)
+            timestamp = transaction.get('timestamp')
+            entry = await self.parse_trade_players(transaction.get('players'), id, timestamp)
+
+            if entry:
+                all_trades = all_trades + entry
+        return pd.DataFrame(all_trades)
+
+
+    async def create_new_trades_csv(self):
+        if not self.transactions:
+            empty_df = pd.DataFrame(columns=['source_team', 'source_team_key', 'destination_team', 'destination_team_key', 'name', 'id']) 
+            await self._persistent_manager.write_csv_formatted(self._trade_transactions_filename, empty_df)
+        else:
+            df = await self.transactions_dict_to_list()
+            await self._persistent_manager.write_csv_formatted(self._trade_transactions_filename, df)
+
+
+    async def update_trade_csv(self):
+        # check if csv is already created
+        logger.info('[TransactionsLog] - .. Done')
+        await self.create_new_trades_csv()
+
 
 
     ###################################################
@@ -75,7 +184,6 @@ class TransactionsLog(commands.Cog):
         
         player_string = (f'{'Position Type:':<20}{player.get('position_type')}\n'
             f'{'Player ID:':<20}{player.get('player_id')}\n')
-        #embed.add_field(name=name,value=f'```{player_string}```', inline=False)
 
         # collect appropriate information for string
         transaction_data_string = ''
@@ -97,10 +205,10 @@ class TransactionsLog(commands.Cog):
         try:
             if isinstance(players,dict):
                 await self.compose_player_string(players.get('player'),embed)
-
             else:
                 for player in players:
                     await self.compose_player_string(player.get('player'),embed)
+                    
         except Exception as e:
             logger.error(f'[TransactionLog] - Error: {e}')
             
@@ -185,6 +293,7 @@ class TransactionsLog(commands.Cog):
 
             # Pace api calls
             await asyncio.sleep(10)
+        return found
             
         # Update transactions .json file
         await self.bot.state.persistent_manager.write_json(filename=self._transactions_filename, data=self.transactions)
@@ -215,6 +324,10 @@ class TransactionsLog(commands.Cog):
                 return True
 
 
+    ###################################################
+    # Check Transactions        
+    ###################################################
+
     @tasks.loop(minutes=10)
     async def check_transactions(self):
         """Check for new transactions every 10 minutes."""
@@ -227,8 +340,12 @@ class TransactionsLog(commands.Cog):
         self.transactions = await self.bot.state.persistent_manager.load_json(filename=self._transactions_filename)
 
         # Get check_if_new_entry
-        await self.update_transactions()
+        found = await self.update_transactions()
         logger.info('[TransactionsLog] - .. Done')
+
+        if found:
+            await self.update_trade_csv()
+            found = False
 
 
     ###################################################
@@ -250,7 +367,6 @@ class TransactionsLog(commands.Cog):
     async def setup_Transactions(self):
         # load private data 
         data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
-        #utility.get_private_discord_data_async()
 
         raw_data = data.get('transactions_channel_id')
         if raw_data is None:
@@ -273,7 +389,7 @@ class TransactionsLog(commands.Cog):
                 self._ready = True
             else:
                 await asyncio.sleep(1)
-        
+
 
     @commands.Cog.listener()
     async def on_ready(self):
