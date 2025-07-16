@@ -293,11 +293,11 @@ class TransactionsLog(commands.Cog):
 
             # Pace api calls
             await asyncio.sleep(10)
-        return found
-            
+         
         # Update transactions .json file
         await self.bot.state.persistent_manager.write_json(filename=self._transactions_filename, data=self.transactions)
-
+        
+        return found
 
     async def unpack_transaction(self, transaction_id:str):
         """Unpack a transaction"""
