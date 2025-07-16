@@ -15,6 +15,7 @@ __pycache__/
 *.json
 !*.json.example
 
+!logging_config.json
 !challenge_config.json
 !trade_value_config.json
 

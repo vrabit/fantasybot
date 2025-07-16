@@ -125,6 +125,7 @@ class BotState:
         self.transactions_filename = 'transactions.json'
         self.weekly_funds_filename = "weekly_funds.json"
         self.challenges_filename = 'challenges.json'
+        self.trade_transactions_filename = 'trade_transactions.csv'
 
         # recap_manager filenames
         self.roster_csv = 'roster_value.csv'
