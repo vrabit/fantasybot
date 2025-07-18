@@ -1552,8 +1552,8 @@ class FantasyQuery(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
-        self.store_data.start()
         await self.wait_for_trade_value()
+        self.store_data.start()
         logger.info('[FantasyQuery] - Ready')
 
 
