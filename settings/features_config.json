@@ -3,5 +3,6 @@
     "slaps_enabled":false,
     "wagers_enabled":false,
     "news_enabled":false,
-    "transactions_enabled": false
+    "transactions_enabled": false,
+    "season_log_enabled": false
 }

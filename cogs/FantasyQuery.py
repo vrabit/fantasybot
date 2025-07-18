@@ -68,6 +68,14 @@ class FantasyQuery(commands.Cog):
     # Discord Commands          
     ###################################################
 
+    @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
+    @app_commands.command(name='enable_log', description='Enables Season Log. Only run after binding all users. (Necessary for Recap)')
+    async def enable_log(self,interaction:discord.Interaction):
+        await interaction.response.defer()
+        await self.bot.state.bot_features.set_log(activate=True)
+        await interaction.followup.send('Season Log Enabled. ')
+
+
     @commands.command()
     async def discord_info(self,ctx, *arg):
         await ctx.send(f' guild: {ctx.guild} \n message: {ctx.message.channel.name} \n author: @{ctx.author}')

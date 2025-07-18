@@ -75,7 +75,8 @@ class BotState:
                      slaps_enabled:bool = False, 
                      wagers_enabled:bool = False, 
                      news_enabled:bool = False,
-                     transactions_enabled = False
+                     transactions_enabled:bool = False,
+                     log_season_enabled:bool = False
         ):
             
             self.vault_enabled:bool = vault_enabled
@@ -83,6 +84,7 @@ class BotState:
             self.wagers_enabled:bool = wagers_enabled
             self.news_enabled:bool = news_enabled
             self.transactions_enabled:bool = transactions_enabled
+            self.log_season_enabled:bool = log_season_enabled
 
             self.settings_manager = settings_manager
             self.feature_settings_config_filename = "features_config.json"
@@ -95,7 +97,8 @@ class BotState:
                 f'Slaps Enabled: {self.slaps_enabled}\n'
                 f'Wagers Enabled: {self.wagers_enabled}\n'
                 f'News Enabled: {self.news_enabled}\n'
-                f'Transactions Enabled: {self.transactions_enabled}'
+                f'Transactions Enabled: {self.transactions_enabled}\n'
+                f'Season Log Enabled: {self.log_season_enabled}\n'
             )
         
 
@@ -106,12 +109,15 @@ class BotState:
         async def store_features(self, data:dict):
             await self.settings_manager.write_json(filename=self.feature_settings_config_filename, data=data)
 
+
         async def enable_wagers(self):
+            # All of these features rely on an already configured Yahoo User - Discord User Memberlist 
             settings = await self.load_features()
             settings['vault_enabled'] = True
             settings['wagers_enabled'] = True
             await self.store_features(settings)
             logger.info('[Main][Features] - Vault and Wagers Enabled')
+
 
         async def set_vault(self, activate:bool):
             settings = await self.load_features()
@@ -148,6 +154,13 @@ class BotState:
             logger.info('[Main][Features] - Transactions Enabled')
 
 
+        async def set_log(self, activate:bool):
+            settings = await self.load_features()
+            settings['season_log_enabled'] = activate
+            await self.store_features(settings)
+            logger.info('[Main][Features] - Season Log Enabled')
+
+
         async def setup_features(self):
             settings = await self.load_features()
             self.vault_enabled = settings.get('vault_enabled')
@@ -155,6 +168,7 @@ class BotState:
             self.wagers_enabled = settings.get('wagers_enabled')
             self.news_enabled = settings.get('news_enabled')
             self.transactions_enabled = settings.get('transactions_enabled')
+            self.log_season_enabled = settings.get('season_log_enabled')
 
             logger.info(f"[Main][setup_features] - {self}")
 
