@@ -1069,6 +1069,10 @@ class FantasyQuery(commands.Cog):
 
     @tasks.loop(minutes=1440)
     async def store_data(self):
+        if self.bot.state.bot_features.log_season_enabled == False:
+            logger.info("[FantasyQuery][store_data] - Season Log disabled.\n To resolve, Bind all Yahoo-Discord Users and run the 'enable_log' Command." )
+            return
+
         logger.info('[FantasyQuery][store_data] - Starting!')
         async with self.bot.state.league_lock:
             fantasy_league_info = self.bot.state.league
