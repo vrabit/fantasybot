@@ -69,6 +69,96 @@ bot = commands.Bot(command_prefix= "$", intents = intents, application_id = app_
 
 
 class BotState:
+    class BotFeatures:
+        def __init__(self, settings_manager, 
+                     vault_enabled:bool = False, 
+                     slaps_enabled:bool = False, 
+                     wagers_enabled:bool = False, 
+                     news_enabled:bool = False,
+                     transactions_enabled = False
+        ):
+            
+            self.vault_enabled:bool = vault_enabled
+            self.slaps_enabled:bool = slaps_enabled
+            self.wagers_enabled:bool = wagers_enabled
+            self.news_enabled:bool = news_enabled
+            self.transactions_enabled:bool = transactions_enabled
+
+            self.settings_manager = settings_manager
+            self.feature_settings_config_filename = "features_config.json"
+
+
+        def __str__(self):
+            return (
+                f'BotFeatures\n'
+                f'Vault Enabled: {self.vault_enabled}\n'
+                f'Slaps Enabled: {self.slaps_enabled}\n'
+                f'Wagers Enabled: {self.wagers_enabled}\n'
+                f'News Enabled: {self.news_enabled}\n'
+                f'Transactions Enabled: {self.transactions_enabled}'
+            )
+        
+
+        async def load_features(self):
+            return await self.settings_manager.load_json(filename = self.feature_settings_config_filename)
+        
+
+        async def store_features(self, data:dict):
+            await self.settings_manager.write_json(filename=self.feature_settings_config_filename, data=data)
+
+        async def enable_wagers(self):
+            settings = await self.load_features()
+            settings['vault_enabled'] = True
+            settings['wagers_enabled'] = True
+            await self.store_features(settings)
+            logger.info('[Main][Features] - Vault and Wagers Enabled')
+
+        async def set_vault(self, activate:bool):
+            settings = await self.load_features()
+            settings['vault_enabled'] = activate
+            await self.store_features(settings)
+            logger.info('[Main][Features] - Vault Enabled')
+
+
+        async def set_slap(self, activate:bool):
+            settings = await self.load_features()
+            settings['slaps_enabled'] = activate
+            await self.store_features(settings)
+            logger.info('[Main][Features] - SlapChallenge Enabled')
+
+
+        async def set_wagers(self, activate:bool):
+            settings = await self.load_features()
+            settings['wagers_enabled'] = activate
+            await self.store_features(settings)
+            logger.info('[Main][Features] - Wagers Enabled')
+
+
+        async def set_news(self, activate:bool):
+            settings = await self.load_features()
+            settings['news_enabled'] = activate
+            await self.store_features(settings)
+            logger.info('[Main][Features] - News Enabled')
+
+
+        async def set_transactions(self, activate:bool):
+            settings = await self.load_features()
+            settings['transactions_enabled'] = activate
+            await self.store_features(settings)
+            logger.info('[Main][Features] - Transactions Enabled')
+
+
+        async def setup_features(self):
+            settings = await self.load_features()
+            self.vault_enabled = settings.get('vault_enabled')
+            self.slaps_enabled = settings.get('slaps_enabled')
+            self.wagers_enabled = settings.get('wagers_enabled')
+            self.news_enabled = settings.get('news_enabled')
+            self.transactions_enabled = settings.get('transactions_enabled')
+
+            logger.info(f"[Main][setup_features] - {self}")
+
+
     def __init__(self,guild_id:int = None, guild:discord.Object = None):
         # ready check
         self.memlist_ready_lock = asyncio.Lock()
@@ -150,6 +240,10 @@ class BotState:
         self.vault_accounts_filename = 'vault_accounts.json'
         self.vault_slap_contracts_filename = 'vault_slap_contracts.json'
         self.vault_wager_contracts_filename = 'vault_wager_contracts.json'
+
+        # Features
+        self.bot_features = self.BotFeatures(settings_manager=self.settings_manager)
+
 
 bot.state = BotState(guild_id=guild_id, guild=guild)
 

@@ -21,6 +21,7 @@ __pycache__/
 !logging_config.json
 !challenge_config.json
 !trade_value_config.json
+!features_config.json
 
 # Ignore server specific files
 /recap/

@@ -315,6 +315,13 @@ class MaintainVault(commands.Cog):
     @app_commands.describe(discord_user="Player's Discord Tag", points_prediction="Total, 'COMBINED', points at end of matchup.")
     async def wager(self, interaction:discord.Interaction, discord_user:discord.User, points_prediction:int):
         await interaction.response.defer(ephemeral=True)
+        
+        if not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.wagers_enabled:
+            message = f"Either Wagers or Vault Disabled. \n {self.bot.state.bot_features}"
+            logger.warning(f'[MaintainVault] - {message}')
+            await interaction.follow.send(message)
+            return
+
         if not await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
             await self.create_current_week_wagers()
         
@@ -347,6 +354,14 @@ class MaintainVault(commands.Cog):
     ###################################################
     # Manual Slash Commands        
     ###################################################
+
+    @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
+    @app_commands.command(name='enable_vault', description='Enables Vault and wagers. Only run after binding all users.')
+    async def enable_vault(self,interaction:discord.Interaction):
+        await interaction.response.defer()
+        await self.bot.state.bot_features.enable_wagers()
+        await interaction.followup.send('Vault and Wagers Enabled.')
+
 
     @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
     @app_commands.command(name='execute_contracts', description='manually execute contracts.')
@@ -674,6 +689,11 @@ class MaintainVault(commands.Cog):
     # Setup
     ####################################################
 
+    async def is_enabled(self):
+        while(self.bot.state.bot_features.vault_enabled == False):
+            await asyncio.sleep(2)
+
+
     async def init_vault(self):
         loaded_vault = await self.load_all()
         if loaded_vault is None:
@@ -739,7 +759,13 @@ class MaintainVault(commands.Cog):
         
     @commands.Cog.listener()
     async def on_ready(self): 
+        # Wait for FantasyQuery Init and memlist init
         await self.wait_for_fantasy_and_memlist()
+
+        # Wait for Feature Enable
+        await self.is_enabled()
+        logger.info('[MaintainVault] - Enabled')
+
         await self.init_vault()
         await self.load_challenge_variables()
         logger.info('[MaintainVault] - Initialized MaintainVault')

@@ -294,10 +294,12 @@ class TransactionsLog(commands.Cog):
             # Pace api calls
             await asyncio.sleep(10)
          
-        # Update transactions .json file
-        await self.bot.state.persistent_manager.write_json(filename=self._transactions_filename, data=self.transactions)
+            # Update transactions .json file
+            await self.bot.state.persistent_manager.write_json(filename=self._transactions_filename, data=self.transactions)
+            logger.info('[TransactionsLog] - Updated Transactions.')
         
         return found
+
 
     async def unpack_transaction(self, transaction_id:str):
         """Unpack a transaction"""
@@ -364,6 +366,12 @@ class TransactionsLog(commands.Cog):
     # Setup          
     ###################################################
     
+
+    async def is_enabled(self):
+        while(self.bot.state.bot_features.transactions_enabled == False):
+            await asyncio.sleep(2)
+
+
     async def setup_Transactions(self):
         # load private data 
         data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
@@ -394,6 +402,11 @@ class TransactionsLog(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
+
+        # Wait for Feature Enable
+        await self.is_enabled()
+        logger.info('[TransactionsLog] - Enabled')
+
         self.check_transactions.start()
         logger.info('[TransactionsLog] - Ready')
 

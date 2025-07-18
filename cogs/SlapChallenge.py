@@ -305,6 +305,10 @@ class SlapChallenge(commands.Cog):
             self.bot.tree.add_command(command, guild=guild)
 
 
+    async def is_enabled(self):
+        while(self.bot.state.bot_features.vault_enabled == False and self.bot.state.bot_features.slaps_enabled == False):
+            await asyncio.sleep(2)
+
     async def wait_for_fantasy(self):
         while not self._ready:
             async with self.bot.state.fantasy_query_lock:
@@ -318,6 +322,9 @@ class SlapChallenge(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
+        await self.is_enabled()
+        logger.info('[SlapChallenge] - Enabled')
+
         await self.setup_discord()
         await self.load_challenge_variables()
         logger.info('[SlapChallenge] - Ready')

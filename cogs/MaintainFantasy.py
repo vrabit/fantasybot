@@ -27,6 +27,8 @@ class MaintainFantasy(commands.Cog):
         self._player_ids_filename = bot.state.player_ids_filename
         self._private_filename = bot.state.private_filename
 
+        self._bot_features = self.bot.state.bot_features
+
 
     ###################################################
     # Setup fantasy object       
@@ -103,20 +105,12 @@ class MaintainFantasy(commands.Cog):
     # Setup          
     ###################################################
     
-    async def wait_for_fantasy(self):
-        while not self._ready:
-            async with self.bot.state.fantasy_query_lock:
-                fantasy_query = self.bot.state.fantasy_query
-            if fantasy_query is not None:
-                self._ready = True
-            else:
-                await asyncio.sleep(1)
-
-
     @commands.Cog.listener()
     async def on_ready(self):
+        # Enable pre setup Features
+        await self.bot.state.bot_features.setup_features()
+
         self.token_expiration.start()
-        #await self.wait_for_fantasy()
         logger.info('[MaintainFantasy] - Yahoo Fantasy Initialized\n  ..')
 
 

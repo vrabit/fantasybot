@@ -143,6 +143,11 @@ class RSSHandler(commands.Cog):
     # Handle Startup          
     ###################################################
 
+    async def is_enabled(self):
+        while(self.bot.state.bot_features.news_enabled == False):
+            await asyncio.sleep(2)
+
+
     async def setup_RSS(self):
         # load private data 
         data = await self.bot.state.discord_auth_manager.load_json(filename = self._private_filename)
@@ -211,8 +216,10 @@ class RSSHandler(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
-        logger.info('[RSSHandler] - RSS Setup .. ')
+        await self.is_enabled()
+        logger.info('[RSSHandler] - Enabled')
 
+        logger.info('[RSSHandler] - RSS Setup .. ')
         async with self.bot.state.fantasy_query_lock:
             team_list:list[Team] =self.bot.state.fantasy_query.get_teams()
 
