@@ -65,16 +65,132 @@ class FantasyQuery(commands.Cog):
 
 
     ###################################################
-    # Discord Commands          
+    # Bind Commands USER         
     ###################################################
 
-    @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
-    @app_commands.command(name='enable_log', description='Enables Season Log. Only run after binding all users. (Necessary for Recap)')
-    async def enable_log(self,interaction:discord.Interaction):
-        await interaction.response.defer()
-        await self.bot.state.bot_features.set_log(activate=True)
-        await interaction.followup.send('Season Log Enabled. ')
+    class TeamSelectConfirmView(discord.ui.View):
+        def __init__(self, outer: "FantasyQuery", selected_members:list, options:list):
+            super().__init__()
+            self.outer = outer
+            self.bot = outer.bot
+            self.members_filename = self.bot.state.members_filename
+            self.selected_members = selected_members
+            self.options = options
 
+        async def disable_buttons(self):
+            for child in self.children:
+                if isinstance(child,discord.ui.Button):
+                    child.disabled = True
+
+        ##############################################################
+        # Overloaded def -  Errors
+        ##############################################################
+
+        async def on_timeout(self):
+            await self.disable_buttons()
+
+            if self.message:
+                embed = discord.Embed(title = 'Bind', description = 'Operation Expired',color = self.emb_color)
+                await self.message.edit(embed = embed,view = self)
+
+
+        async def on_error(self,interaction:discord.Interaction, error, item):
+            if interaction.response.is_done():
+                await interaction.followup.send(f'Error: {error}', ephemeral=True)
+            else:
+                await interaction.response.send_message(f'Error: {error}', ephemeral=True)
+
+
+        @discord.ui.button(label="Confirm", style=discord.ButtonStyle.primary)
+        async def confirm(self, interaction:discord.Interaction, button:discord.Button):
+            await interaction.response.defer()
+            await self.disable_buttons()
+
+            selected_member = self.selected_members[0]
+            discord_id = interaction.user.id
+
+            members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+            await self.outer.bind_discord(members, selected_member, discord_id)
+            await self.bot.state.persistent_manager.write_json(filename=self.members_filename, data=members)
+           
+            label_list = [option.label for option in self.options if option.value == selected_member]
+
+            await interaction.followup.send(f"Bound {utility.id_to_mention(discord_id)} to {label_list[0]}")
+
+
+        @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
+        async def second_button_callback(self, interaction:discord.Interaction, button:discord.Button):
+            await self.disable_buttons()
+            await interaction.response.send_message(f"Canceled operation.", ephemeral=True)
+
+
+    class TeamSelect(discord.ui.Select):
+        def __init__(self, outer: "FantasyQuery"):
+            super().__init__(
+                min_values=1,
+                max_values=1
+            )
+            self.outer = outer
+            self.bot = outer.bot
+            self.members_filename = outer.bot.state.members_filename
+
+        async def callback(self, interaction: discord.Interaction):
+            view = FantasyQuery.TeamSelectConfirmView(self,self.values,self.options)
+            await interaction.response.send_message("Are you sure?", view=view, ephemeral=True)
+
+
+    async def construct_team_select(self):
+        select = self.TeamSelect(self)
+
+        members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+        for member in members:
+            select.add_option(label=member.get('name'), value=member.get('id'), default=False)
+        return select
+    
+
+    @app_commands.command(name="bind_team", description= "Select your Fantasy team.")
+    async def bind_team(self,interaction:discord.Interaction):
+
+        select = await self.construct_team_select()
+        view = discord.ui.View()
+        view.add_item(select)
+
+        await interaction.response.send_message("Select your Yahoo Fantasy Team.", view=view, ephemeral=True)
+
+
+    ###################################################
+    # Bind Commands ADMIN        
+    ###################################################
+
+    async def bind_discord(self, members:dict, draft_id:int, discord_id:int) -> dict:
+        for member in members:
+            if member.get('id') == str(draft_id):
+                member.update({'discord_id':str(discord_id)})
+                break
+        return members
+
+
+    @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
+    @app_commands.command(name='bind_other', description= "Bind Team ID to specified Discord ID")
+    @app_commands.describe(discord_user="Tagged Discord User", id="Yahoo team ID")
+    async def bind_other(self, interaction:discord.Interaction, discord_user:discord.User, id:int):
+
+        async with self.bot.state.league_lock:
+            num_teams = utility.arg_to_int(self.bot.state.league.num_teams) 
+
+        if id >= 1 and id <= num_teams:
+            members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
+            updated_members = await self.bind_discord(members, id, discord_user.id)
+            await self.bot.state.persistent_manager.write_json(filename=self.members_filename, data=updated_members)
+
+            await interaction.response.send_message(f'Team ID: {id} bound to Discord ID: {utility.id_to_mention(discord_user.id)}',ephemeral=True)
+        else:
+            await interaction.response.send_message(f'Integer between 1 - {num_teams}',ephemeral=True)
+
+
+    ###################################################
+    # Discord Commands          
+    ###################################################
 
     @commands.command()
     async def discord_info(self,ctx, *arg):
@@ -137,52 +253,6 @@ class FantasyQuery(commands.Cog):
             embed.add_field(name = members[i].get('name'), value = val, inline=False)
 
         await interaction.response.send_message(embed = embed,ephemeral=False)
-
-
-    async def bind_discord(self, members:dict, draft_id:int, discord_id:int) -> dict:
-        for member in members:
-            if member.get('id') == str(draft_id):
-                member.update({'discord_id':str(discord_id)})
-                break
-        return members
-
-
-    @app_commands.command(name="bind", description= "Bind Team ID to current Discord ID")
-    @app_commands.describe(id="Yahoo team ID")
-    async def bind(self,interaction:discord.Interaction, id: int):
-        discord_id = interaction.user.id
-
-        value = utility.arg_to_int(id)
-
-        async with self.bot.state.league_lock:
-            num_teams = utility.arg_to_int(self.bot.state.league.num_teams) 
-
-        if value >= 1 and value <= num_teams:
-            members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
-            updated_members = await self.bind_discord(members, value, discord_id)
-            await self.bot.state.persistent_manager.write_json(filename=self.members_filename, data=updated_members)
-
-            await interaction.response.send_message(f'Team ID: {value} bound to Discord ID: {utility.id_to_mention(discord_id)}',ephemeral=True)
-        else:
-            await interaction.response.send_message(f'Integer between 1 - {num_teams}',ephemeral=True)
-
-
-    @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
-    @app_commands.command(name='bind_other', description= "Bind Team ID to specified Discord ID")
-    @app_commands.describe(discord_user="Tagged Discord User", id="Yahoo team ID")
-    async def bind_other(self, interaction:discord.Interaction, discord_user:discord.User, id:int):
-
-        async with self.bot.state.league_lock:
-            num_teams = utility.arg_to_int(self.bot.state.league.num_teams) 
-
-        if id >= 1 and id <= num_teams:
-            members = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
-            updated_members = await self.bind_discord(members, id, discord_user.id)
-            await self.bot.state.persistent_manager.write_json(filename=self.members_filename, data=updated_members)
-
-            await interaction.response.send_message(f'Team ID: {id} bound to Discord ID: {utility.id_to_mention(discord_user.id)}',ephemeral=True)
-        else:
-            await interaction.response.send_message(f'Integer between 1 - {num_teams}',ephemeral=True)
 
 
     @app_commands.command(name="set_news",description="Set current channel to News channel")
@@ -1070,7 +1140,7 @@ class FantasyQuery(commands.Cog):
     @tasks.loop(minutes=1440)
     async def store_data(self):
         if self.bot.state.bot_features.log_season_enabled == False:
-            logger.info("[FantasyQuery][store_data] - Season Log disabled.\n To resolve, Bind all Yahoo-Discord Users and run the 'enable_log' Command." )
+            logger.info("[FantasyQuery][store_data] - Season Log disabled.\n To resolve, run the 'enable_log' Command." )
             return
 
         logger.info('[FantasyQuery][store_data] - Starting!')
@@ -1106,7 +1176,6 @@ class FantasyQuery(commands.Cog):
 
 
     async def plot_rank_bumpchart(self, df):
-        df_copy = df.copy()
         # Gather all necessary data
         df_plot = await self.create_bump_chart_plot(df)
 

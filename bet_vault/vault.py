@@ -674,6 +674,11 @@ class Vault():
         return None
 
 
+    @classmethod
+    async def get_all_wagers(cls) -> list[Vault.GroupWagerContract]:
+        return cls.contracts.get(Vault.GroupWagerContract.__name__).copy()
+
+
     ###################################################################
     # Create Contract Interface
     ###################################################################

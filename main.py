@@ -114,7 +114,11 @@ class BotState:
             # All of these features rely on an already configured Yahoo User - Discord User Memberlist 
             settings = await self.load_features()
             settings['vault_enabled'] = True
+            self.vault_enabled = True
+
             settings['wagers_enabled'] = True
+            self.wagers_enabled = True
+
             await self.store_features(settings)
             logger.info('[Main][Features] - Vault and Wagers Enabled')
 
@@ -122,6 +126,8 @@ class BotState:
         async def set_vault(self, activate:bool):
             settings = await self.load_features()
             settings['vault_enabled'] = activate
+            self.vault_enabled = activate
+
             await self.store_features(settings)
             logger.info('[Main][Features] - Vault Enabled')
 
@@ -129,6 +135,8 @@ class BotState:
         async def set_slap(self, activate:bool):
             settings = await self.load_features()
             settings['slaps_enabled'] = activate
+            self.slaps_enabled = activate
+
             await self.store_features(settings)
             logger.info('[Main][Features] - SlapChallenge Enabled')
 
@@ -136,6 +144,8 @@ class BotState:
         async def set_wagers(self, activate:bool):
             settings = await self.load_features()
             settings['wagers_enabled'] = activate
+            self.wagers_enabled = activate
+
             await self.store_features(settings)
             logger.info('[Main][Features] - Wagers Enabled')
 
@@ -143,6 +153,8 @@ class BotState:
         async def set_news(self, activate:bool):
             settings = await self.load_features()
             settings['news_enabled'] = activate
+            self.news_enabled = activate
+
             await self.store_features(settings)
             logger.info('[Main][Features] - News Enabled')
 
@@ -150,6 +162,8 @@ class BotState:
         async def set_transactions(self, activate:bool):
             settings = await self.load_features()
             settings['transactions_enabled'] = activate
+            self.transactions_enabled = activate
+
             await self.store_features(settings)
             logger.info('[Main][Features] - Transactions Enabled')
 
@@ -157,6 +171,8 @@ class BotState:
         async def set_log(self, activate:bool):
             settings = await self.load_features()
             settings['season_log_enabled'] = activate
+            self.log_season_enabled = activate
+
             await self.store_features(settings)
             logger.info('[Main][Features] - Season Log Enabled')
 

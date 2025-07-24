@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, date
 from yfpy.models import GameWeek, Matchup
 
 from cogs_helpers import FantasyHelper
+from collections import deque
 import utility
 
 import logging
@@ -311,6 +312,196 @@ class MaintainVault(commands.Cog):
     # Create Contract Commands        
     ###################################################
 
+    class MatchupTextPredictionValue(discord.ui.Modal):
+        def __init__(self, outer:"MaintainVault", team_name:str, team_id:str, wager:Vault.GroupWagerContract, prediction_account:Vault.BankAccount):
+            super().__init__(
+                title='Wager',
+            )
+            self.outer = outer
+            self.team_name = team_name
+            self.team_id = team_id
+            self.wager = wager
+            self.prediction_account = prediction_account
+            self.points_prediction = discord.ui.TextInput(
+                label="Total Cumulative Points Prediction", 
+                style=discord.TextStyle.short,
+                placeholder='Example: 200',
+                required=True
+            )
+            self.add_item(self.points_prediction)
+
+
+        async def on_error(self, interaction, error):
+            return await super().on_error(interaction, error)
+        
+
+        async def on_submit(self, interaction: discord.Interaction):
+            try:
+                points = int(self.points_prediction.value)
+            except ValueError:
+                await interaction.response.send_message("Invalid type, expected an integer.")
+
+            gambler:Vault.BankAccount = await Vault.bank_account_by_discord_id(str(interaction.user.id))              
+            try:
+                await self.wager.add_prediction(gambler=gambler, prediction_id=str(self.team_id), prediction_points=points, amount = self.outer._default_wager_amount)
+            except Exception as e:
+                message = f"Add prediction failed. Error: {e}"
+                logger.warning(message)
+                await interaction.response.send_message(message)
+                return
+            await self.outer.store_all()
+
+            message = f"{interaction.user.mention} successfully placed {self.outer._default_wager_amount} tokens on {self.prediction_account.discord_tag}."
+            logger.info(message)
+            await interaction.response.send_message(message)
+
+
+    class MatchupSelectConfirmView(discord.ui.View):
+
+        def __init__(self, outer: "MaintainVault", selected_matchups:list, options:list, wagers_deque, team_1_name:str, team_2_name:str):
+            super().__init__()
+            self.outer = outer
+            self.bot = outer.bot
+            self.wagers_deque = wagers_deque # This is a copy
+            self.members_filename = self.bot.state.members_filename
+            self.selected_matchups_index = selected_matchups[0]
+            self.options = options
+            self.team_1_name = team_1_name
+            self.team_2_name = team_2_name
+
+            team_1_button = discord.ui.Button(label=team_1_name.split(' ')[-1], style=discord.ButtonStyle.primary)
+            team_1_button.callback = self.select_first
+            self.add_item(team_1_button)
+
+            team_2_button = discord.ui.Button(label=team_2_name.split(' ')[-1], style=discord.ButtonStyle.primary)
+            team_2_button.callback = self.select_second
+            self.add_item(team_2_button)
+
+
+        ##############################################################
+        # Helpers
+        ##############################################################
+
+        async def disable_buttons(self):
+            for child in self.children:
+                if isinstance(child,discord.ui.Button):
+                    child.disabled = True
+
+
+        ##############################################################
+        # Overloaded def - Errors
+        ##############################################################
+
+        async def on_timeout(self):
+            await self.disable_buttons()
+
+
+        async def on_error(self,interaction:discord.Interaction, error, item):
+            if interaction.response.is_done():
+                await interaction.followup.send(f'Error: {error}', ephemeral=True)
+            else:
+                await interaction.response.send_message(f'Error: {error}', ephemeral=True)
+
+
+        async def select_first(self, interaction:discord.Interaction):
+            await self.disable_buttons()
+
+            prediction = self.wagers_deque[int(self.selected_matchups_index)]
+            chosen_yahoo_id = prediction.team_1_id
+
+            chosen_discord_id = await utility.teamid_to_discord(chosen_yahoo_id,self.outer._persistent_manager)
+            prediction_bank_account:Vault.BankAccount = await Vault.bank_account_by_discord_id(discord_id=str(chosen_discord_id))
+            wager:Vault.GroupWagerContract = await Vault.get_wager(fantasy_id = prediction_bank_account.fantasy_id)
+            
+            if wager is None:
+                await interaction.response.send_message()('Matchup not found.')
+                return
+            
+            modal = MaintainVault.MatchupTextPredictionValue(self.outer, self.team_1_name, chosen_discord_id, wager, prediction_bank_account)
+            await interaction.response.send_modal(modal)
+
+
+        async def select_second(self, interaction:discord.Interaction):
+            await self.disable_buttons()
+
+            prediction = self.wagers_deque[int(self.selected_matchups_index)]
+            chosen_yahoo_id = prediction.team_2_id
+
+            chosen_discord_id = await utility.teamid_to_discord(chosen_yahoo_id,self.outer._persistent_manager)
+            prediction_bank_account:Vault.BankAccount = await Vault.bank_account_by_discord_id(discord_id=str(chosen_discord_id))
+            wager:Vault.GroupWagerContract = await Vault.get_wager(fantasy_id = prediction_bank_account.fantasy_id)
+            
+            if wager is None:
+                await interaction.response.send_message()('Matchup not found.')
+                return
+            
+            modal = MaintainVault.MatchupTextPredictionValue(self.outer, self.team_2_name, chosen_discord_id, wager, prediction_bank_account)
+            await interaction.response.send_modal(modal)
+            await interaction.response.edit_message(view=self)
+
+
+        @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
+        async def second_button_callback(self, interaction:discord.Interaction, button:discord.Button):
+            await self.disable_buttons()
+            await interaction.response.send_message(f"Canceled operation.", ephemeral=True)
+
+
+    class MatchupSelect(discord.ui.Select):
+        def __init__(self, outer: "MaintainVault", wagers_deque):
+            super().__init__(
+                min_values=1,
+                max_values=1
+            )
+            self.outer = outer
+            self.wagers_deque = wagers_deque
+            self.bot = outer.bot
+            self.members_filename = outer.bot.state.members_filename
+
+
+        async def callback(self, interaction: discord.Interaction):
+            index = int(self.values[0])
+            wager = self.wagers_deque[index]
+            team_1_name = await utility.teamid_to_name(int(wager.team_1_id), self.outer._persistent_manager)
+            team_2_name = await utility.teamid_to_name(int(wager.team_2_id), self.outer._persistent_manager)
+
+            view = MaintainVault.MatchupSelectConfirmView(self.outer,self.values, self.options, self.wagers_deque, team_1_name, team_2_name)
+            await interaction.response.send_message("Place your wager.", view=view, ephemeral=True)
+
+
+    async def construct_week_wagers_select(self):
+        wagers_deque:deque[Vault.GroupWagerContract] = await Vault.get_all_wagers()
+
+        # build Select
+        select = self.MatchupSelect(self, wagers_deque)
+        for i, value in enumerate(wagers_deque):
+            team_1_id = value.team_1_id
+            team_2_id = value.team_2_id
+
+            team_1_name = await utility.teamid_to_name(team_1_id, self._persistent_manager)
+            team_2_name = await utility.teamid_to_name(team_2_id, self._persistent_manager)
+
+            select.add_option(label=f"{team_1_name} VS {team_2_name}", value=f'{i}', default=False)
+        return select
+
+
+    @app_commands.command(name='place_wager', description="Place a wager on one of this week's matchups.")
+    async def place_wager(self, interaction:discord.Interaction):
+        if not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.wagers_enabled:
+            message = f"Either Wagers or Vault Disabled. \n {self.bot.state.bot_features}"
+            logger.warning(f'[MaintainVault] - {message}')
+            await interaction.followup.send(message)
+            return
+
+        if not await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
+            await self.create_current_week_wagers()
+
+        select = await self.construct_week_wagers_select()
+        view = discord.ui.View()
+        view.add_item(select)
+
+        await interaction.response.send_message("Select Matchup to Wager on.", view=view, ephemeral=True)
+
+
     @app_commands.command(name='wager', description="Place a wager on one of this week's matchups.")
     @app_commands.describe(discord_user="Player's Discord Tag", points_prediction="Total, 'COMBINED', points at end of matchup.")
     async def wager(self, interaction:discord.Interaction, discord_user:discord.User, points_prediction:int):
@@ -319,12 +510,13 @@ class MaintainVault(commands.Cog):
         if not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.wagers_enabled:
             message = f"Either Wagers or Vault Disabled. \n {self.bot.state.bot_features}"
             logger.warning(f'[MaintainVault] - {message}')
-            await interaction.follow.send(message)
+            await interaction.followup.send(message)
             return
 
         if not await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
             await self.create_current_week_wagers()
         
+
         gambler:Vault.BankAccount = await Vault.bank_account_by_discord_id(str(interaction.user.id))
         prediction_bank_account:Vault.BankAccount = await Vault.bank_account_by_discord_id(discord_id=str(discord_user.id))
         wager:Vault.GroupWagerContract = await Vault.get_wager(fantasy_id = prediction_bank_account.fantasy_id)
@@ -721,7 +913,7 @@ class MaintainVault(commands.Cog):
                 fantasy_query = self.bot.state.fantasy_query
             async with self.bot.state.memlist_ready_lock:
                 memlist_ready = self.bot.state.memlist_ready
-            if memlist_ready and fantasy_query is not None:
+            if memlist_ready == True and fantasy_query is not None:
                 self._ready_to_init = True
             else:
                 await asyncio.sleep(1)   
@@ -731,10 +923,10 @@ class MaintainVault(commands.Cog):
         data = await self.bot.state.settings_manager.load_json(filename = self._challenge_filename)
         self.loser_role_name=data.get("loser_role_name")
         self.denier_role_name=data.get("denier_role_name")
-        self._initial_bank_funds=data.get("initial_bank_funds")
-        self._weekly_bank_funds=data.get("weekly_bank_funds")
-        self._default_wager_amount = data.get("default_wager_amount")
-        self._default_wager_bonus = data.get("default_bonus_amount")
+        self._initial_bank_funds= int(data.get("initial_bank_funds"))
+        self._weekly_bank_funds= int(data.get("weekly_bank_funds"))
+        self._default_wager_amount = int(data.get("default_wager_amount"))
+        self._default_wager_bonus = int(data.get("default_bonus_amount"))
         self.challenger_wins_link = data.get("challenger_wins_link")
         self.challengee_wins_link = data.get("challengee_wins_link")
         self.tie_link = data.get("tie_link")
@@ -761,6 +953,7 @@ class MaintainVault(commands.Cog):
     async def on_ready(self): 
         # Wait for FantasyQuery Init and memlist init
         await self.wait_for_fantasy_and_memlist()
+        logger.info('[MaintainVault] - Memlist and Fantasy Query Awaited.')
 
         # Wait for Feature Enable
         await self.is_enabled()

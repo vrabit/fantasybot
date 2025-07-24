@@ -216,17 +216,16 @@ class RSSHandler(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.wait_for_fantasy()
-        await self.is_enabled()
-        logger.info('[RSSHandler] - Enabled')
 
-        logger.info('[RSSHandler] - RSS Setup .. ')
         async with self.bot.state.fantasy_query_lock:
             team_list:list[Team] =self.bot.state.fantasy_query.get_teams()
-
         await self.update_memlist(team_list)
         async with self.bot.state.memlist_ready_lock:
             self.bot.state.memlist_ready = True
 
+        await self.is_enabled()
+        logger.info('[RSSHandler] - Enabled')
+        logger.info('[RSSHandler] - RSS Setup .. ')
         self.poll_rss.start(self._rssURL)
         logger.info('[RSSHandler] - Ready')
 

@@ -1,8 +1,8 @@
 {
-    "vault_enabled":false,
-    "slaps_enabled":false,
-    "wagers_enabled":false,
-    "news_enabled":false,
+    "vault_enabled": true,
+    "slaps_enabled": false,
+    "wagers_enabled": true,
+    "news_enabled": false,
     "transactions_enabled": false,
     "season_log_enabled": true
 }
