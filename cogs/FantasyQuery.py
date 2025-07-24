@@ -272,7 +272,7 @@ class FantasyQuery(commands.Cog):
         await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
 
         # Enable News Feature
-        await self.bot.state.set_news(activate = True)
+        await self.bot.state.bot_features.set_news(activate = True)
 
         await interaction.response.send_message('News Channel Set.')
 
@@ -294,7 +294,7 @@ class FantasyQuery(commands.Cog):
         await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
 
         # Enable Slap Feature
-        await self.bot.state.set_slap(activate=True)
+        await self.bot.state.bot_features.set_slap(activate=True)
 
         await interaction.response.send_message('Slap Channel Set.')
 
@@ -316,7 +316,7 @@ class FantasyQuery(commands.Cog):
         await self.bot.state.discord_auth_manager.write_json(filename = self._private_filename, data = data)
 
         # Enable Transactions Feature
-        await self.bot.state.set_transactions(activate=True)
+        await self.bot.state.bot_features.set_transactions(activate=True)
 
         await interaction.response.send_message('Transactions Channel Set.')
 

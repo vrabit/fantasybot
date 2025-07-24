@@ -275,7 +275,7 @@ class Vault():
 
         def __init__(
             self, team_1_id:str, team_2_id:str, 
-            expiration_date:datetime, week:int, amount:int=0, executed:bool = False
+            expiration_date:datetime, week:int, amount:int=0, bonus:int=0, executed:bool = False
         ):
             super().__init__(amount, expiration_date, week, executed)
             if not isinstance(team_1_id,str) or not isinstance(team_2_id,str):
@@ -287,7 +287,7 @@ class Vault():
             self._team_1_id = team_1_id
             self._team_2_id = team_2_id
             self._amount:int = amount
-            self._bonus:int = amount
+            self._bonus:int = bonus
             self._predictions_deque:deque[Vault.GroupWagerContract.Prediction] = deque()
 
 
@@ -334,6 +334,7 @@ class Vault():
                 f'team_1_id={self.team_1_id}\n'
                 f'team_2_id={self.team_2_id}\n'
                 f'amount={self.amount}\n'
+                f'bonus={self.bonus}\n'
                 f'pot={self.winnings}'
                 f'expiration={self.expiration}'
                 f'week={self.week}\n'
@@ -404,10 +405,12 @@ class Vault():
             week = serialized_contract.get('week')
             executed = serialized_contract.get('executed') == 'True'
             amount = serialized_contract.get('amount')
+            bonus = serialized_contract.get('bonus')
             contract = cls(
                 team_1_id=team_1_id, 
                 team_2_id=team_2_id, 
                 amount=amount, 
+                bonus=bonus,
                 expiration_date=expiration, 
                 week=week, 
                 executed=executed
@@ -441,6 +444,7 @@ class Vault():
             entry['week'] = self.week
             entry['executed'] = str(self.executed)
             entry['amount'] = self._amount
+            entry['bonus'] = self._bonus
             entry['type'] = str(self.contract_type)
             return entry
         
@@ -675,7 +679,7 @@ class Vault():
 
 
     @classmethod
-    async def get_all_wagers(cls) -> list[Vault.GroupWagerContract]:
+    async def get_all_wagers(cls) -> dict:
         return cls.contracts.get(Vault.GroupWagerContract.__name__).copy()
 
 

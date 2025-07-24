@@ -240,6 +240,11 @@ class MaintainVault(commands.Cog):
         team_2_total_points = matchup_2_dict.get('total_points')
         total_points = team_1_total_points + team_2_total_points
 
+        if len(contract.predictions) <= 1:
+            await contract.refund()
+            logger.info("[MaintainVault][execute_wager] - Refunding prediction.")
+            return
+
         # winner
         if team_1_total_points > team_2_total_points:
             winner_id = contract.team_1_id
@@ -845,7 +850,7 @@ class MaintainVault(commands.Cog):
     async def store_accounts(self):
         serialized_accounts = await self._vault.serialize_accounts()
         await self._vault_manager.write_json(self._vault_accounts_filename, serialized_accounts)
-
+        
 
     async def store_contracts(self):
         serialized_slap_contracts = await self._vault.serialize_contracts(contract_type=Vault.SlapContract.__name__)
@@ -857,6 +862,8 @@ class MaintainVault(commands.Cog):
     async def store_all(self):
         await self.store_accounts()
         await self.store_contracts()
+        logger.info('[MaintainVault][store_accounts] - Bank accounts, slap contracts and wagers saved.')
+
 
     async def load_filename(self, filename):
         data = await self._vault_manager.load_json(filename)
