@@ -6,7 +6,7 @@ from datetime import datetime, date
 from exceptions.vault_exceptions import ExpirationDateError
 from file_manager import BaseFileManager
 from fantasy import fantasyQuery
-
+import math
 import logging
 logger = logging.getLogger(__name__)
 
@@ -311,7 +311,7 @@ class Vault():
 
         @property
         def winnings(self):
-            return self.amount
+            return self.amount + self._bonus
         
 
         @predictions.setter
@@ -474,9 +474,11 @@ class Vault():
 
         async def refund(self):
             number_of_predictions = len(self.predictions)
-            amount_per = (self.amount - self.bonus) / number_of_predictions
+            amount_per = math.ceil(self.amount / number_of_predictions)
+            print(amount_per)
             for prediction in self.predictions:
                 prediction.gambler.money += amount_per
+
             self.executed = True
 
 
@@ -650,8 +652,8 @@ class Vault():
     ###################################################################
 
     @staticmethod
-    async def create_wager_contract(team_1_id:str, team_2_id:str, expiration_date:datetime, week:int, amount:int=0, executed:bool=False):
-        return Vault.GroupWagerContract(team_1_id=team_1_id, team_2_id=team_2_id, expiration_date=expiration_date, week=week, amount=amount, executed=False)
+    async def create_wager_contract(team_1_id:str, team_2_id:str, expiration_date:datetime, week:int, amount:int=0, bonus:int=0, executed:bool=False):
+        return Vault.GroupWagerContract(team_1_id=team_1_id, team_2_id=team_2_id, expiration_date=expiration_date, week=week, amount=amount, bonus=bonus, executed=False)
 
 
     @classmethod
@@ -689,7 +691,7 @@ class Vault():
 
     @overload
     @classmethod
-    async def create_contract(cls, challenger_fantasy_id:str, challengee_fantasy_id:str, amount:int, expiration_date:datetime, week:int, contract_type:str): ...
+    async def create_contract(cls, challenger_fantasy_id:str, challengee_fantasy_id:str, amount:int, bonus:int, expiration_date:datetime, week:int, contract_type:str): ...
 
 
     @overload

@@ -224,6 +224,12 @@ class MaintainVault(commands.Cog):
     # Execute Contracts 
     ###################################################
 
+    async def print_predictions(self, predictions):
+        print('----predictions----')
+        for prediction in predictions:
+            print(prediction)
+
+
     async def execute_wager(self, contract:Vault.GroupWagerContract, week_dict:dict[str:Any]):
         if await contract.empty():
             logger.info('[MaintainVault] - No Predictions to account to parse.')
@@ -245,6 +251,8 @@ class MaintainVault(commands.Cog):
             logger.info("[MaintainVault][execute_wager] - Refunding prediction.")
             return
 
+        await self.print_predictions(contract.predictions)
+
         # winner
         if team_1_total_points > team_2_total_points:
             winner_id = contract.team_1_id
@@ -256,11 +264,17 @@ class MaintainVault(commands.Cog):
             return
 
         winner_list = [prediction for prediction in contract.predictions if prediction.prediction_team == winner_id]
+        print('---winner list---')
+        print(f'winner id: {winner_id}')
+        print(winner_list)
         if winner_list:
             closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points))
             logger.info(f'[MaintainVault][execute_wager] - Team {closest_prediction.gambler.discord_tag} wins {contract.winnings} tokens.')
             await contract.execute_contract(winner=closest_prediction.gambler)
             await self.display_wager_results(contract=contract, team_1_pts=team_1_total_points, team_2_pts=team_2_total_points, total_points=total_points,closest_prediction=closest_prediction, winners_list=winner_list)
+        else:
+            logger.info(f'[MaintainVault][eecute_wager] - Winners list is empty')
+            await contract.refund()
 
 
     async def execute_slap(self, contract:Vault.SlapContract, week_dict:dict[str:Any]):
@@ -348,7 +362,8 @@ class MaintainVault(commands.Cog):
 
             gambler:Vault.BankAccount = await Vault.bank_account_by_discord_id(str(interaction.user.id))              
             try:
-                await self.wager.add_prediction(gambler=gambler, prediction_id=str(self.team_id), prediction_points=points, amount = self.outer._default_wager_amount)
+                prediction_team_id = await utility.discord_to_teamid(int(self.team_id), self.outer._persistent_manager)
+                await self.wager.add_prediction(gambler=gambler, prediction_id=prediction_team_id, prediction_points=points, amount = self.outer._default_wager_amount)
             except Exception as e:
                 message = f"Add prediction failed. Error: {e}"
                 logger.warning(message)
@@ -642,7 +657,8 @@ class MaintainVault(commands.Cog):
                 team_2_id=value.get('team_opponent_id'),
                 expiration_date=datetime.strptime(value.get('week_end'), '%Y-%m-%d'),
                 week=value.get('week'),
-                amount = self._default_wager_bonus,
+                amount = 0,
+                bonus = self._default_wager_bonus,
                 contract_type=Vault.GroupWagerContract.__name__
             )
             await self.store_all()
