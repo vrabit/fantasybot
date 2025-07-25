@@ -317,6 +317,11 @@ dependencies = [
     { name = "yfpy" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aiofiles", specifier = "==24.1.0" },
@@ -386,6 +391,9 @@ requires-dist = [
     { name = "yarl", specifier = "==1.11.1" },
     { name = "yfpy", specifier = "==16.0.3" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.3.3" }]
 
 [[package]]
 name = "feedparser"
