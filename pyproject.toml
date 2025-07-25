@@ -72,3 +72,8 @@ dependencies = [
     "yarl==1.11.1",
     "yfpy==16.0.3",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.3",
+]
