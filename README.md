@@ -1,184 +1,116 @@
 # 🏈 FantasyBot
-A Discord bot used for my Yahoo Fantasy Football leagues.
+A Discord bot that integrates with Yahoo Fantasy Football leagues, transforming how friends engage with their fantasy season.
+FantasyBot can be self-hosted on various platforms, including low-cost devices like a Raspberry Pi.
 
 ![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
 
+---
 
-## Features
+## ✨ Key Features
 
-- 🏆 Fantasy standings and weekly recaps  
-- 📊 Player stat lookups and trade value comparisons  
-- 📢 NFL news integration via RSS feeds
-- 🔄 Yahoo transaction updates automatically posted to a designated Discord channel
-- 💬 Slash command interface (no prefix spam)
+FantasyBot is designed to enhance your fantasy football experience with a suite of powerful, engaging, and unique features:
 
+* 🏆**Comprehensive League Insights:**
+    * **Live Matchup Scores:** Get up-to-date fantasy team points for all weekly matchups using the `/matchups` command. *Note: This provides fantasy team point totals*
+    * **League Information:** Instantly fetch detailed league standings, schedules, and scores.
+    * **Leaderboards:** Showcase weekly and season leaders (MVP) and bottom performers (Chump). 
+    * **Player Stats:** Get up-to-date player statistics directly in Discord.
+    * **Transactions & Polls:** Automatically post league transactions and easily create polls for specific trades (e.g., to vote on "Collusion?").
+    * **Weekly/Season Recaps:** Get visual recaps of your league's performance, including:
+        * Podium-style bar graphs with Yahoo team images for ranking.
+        * Bump charts showcasing team rankings over the regular season.
+        * A season recap bar chart GIF for cumulative points collected.
 
-## Slash Commands
+* 📊**Advanced Player Valuation (Powered by FantasyCalc API):**
+    * **Trade Evaluation:** Seamlessly compare players' trade values using `/trade_send`, `/trade_receive`, and `/trade_evaluate` commands, generating a bar chart for quick visual assessment.
 
-  - [Config Commands](https://github.com/vrabit/fantasybot/wiki/Commands#-config-commands)
-  - [Fantasy Commands](https://github.com/vrabit/fantasybot/wiki/Commands#-fantasy-commands)
-  - [Utility Commands](https://github.com/vrabit/fantasybot/wiki/Commands#%EF%B8%8F-utility-commands)
+* 📢**Real-time News Feed (Rotowire RSS):**
+    * Integrate Rotowire's RSS feed directly into a designated Discord channel for continuous fantasy news updates.
 
-| Command           | Description                                 | Input                        |
-| ----------------- | ------------------------------------------- | ---------------------------- |
-| `/week_chump`     | Loser of the specified week                 | `week: int`                  |
-| `/chump`          | Loser of the current week                   | –                            |
-| `/week_mvp`       | MVP of the specified week                   | `week: int`                  |
-| `/mvp`            | MVP of the current week                     | –                            |
-| `/week_matchups`  | Matchups of the specified week              | `week: int`                  |
-| `/matchups`       | Matchups of the current week                | –                            |
-| `/leaderboard`    | Fantasy leaderboard                         | –                            |
-| `/most_points`    | Standings by most points                    | –                            |
-| `/points_against` | Standings by points against                 | –                            |
-| `/recap`          | Last week's recap                           | –                            |
-| `/player_stats`   | NFL player details                          | `player_name: str`           |
-| `/slap`           | Slap a user. Loser = Chump, Denier = Coward | `discord_user: discord.User` |
-| `/trade_send`     | Add player to sender side for trade         | `player: str`                |
-| `/trade_receive`  | Add player to receiver side for trade       | `player: str`                |
-| `/compare_value`  | Evaluate trade value                        | –                            |
-| `/clear_trade`    | Clear your current trade proposals          | –                            |
+* 🎲**Engaging Wager System:**
+    * **Slap Challenges:** Challenge another user's Yahoo team with a `/slap @discord_tag token_amount` command. At week's end, the fantasy points of both teams are compared, winner takes all!
+    * **Matchup Wagering:** Bet your in-game tokens on any of the week's fantasy football matchups with `\wager`. If multiple users wager on the same winning team, the closest cumulative point prediction wins the pot.
 
+---
 
-## 🚀 Quick Start
+## 🚀 Setup
 
 ### Prerequisites
    - Create a [Discord bot](https://discord.com/developers/applications)
    - Register a [Yahoo Fantasy Sports app](https://developer.yahoo.com/apps/)
    - Acquire your [Yahoo Fantasy Football League ID](https://football.fantasysports.yahoo.com/)
 
-<details markdown="1">
-   
-<summary>📌⚙️ Setup Instructions</summary>
+* **Python 3.12**
+* **Discord Server:** With administrator permissions for initial bot setup.
+* **Yahoo Fantasy API Authentication:** A free Yahoo Developer Network account is required.
+* **`.env` file configuration:** You will need to fill out specific details in your `.env` file (explained in the Wiki).
 
----
+### Basic Installation & Run:
 
-1. Clone the repo:
-
-   ```bash
-   git clone https://github.com/vrabit/fantasybot.git
-   
-   ```
-
-
----
-
-2. Install Requirements: 
-
-   ```bash
-   pip install -r requirements.txt
-
-   ```
-
----
-
-3. [Create a Yahoo Fantasy Sports app](https://github.com/vrabit/fantasybot/wiki/Yahoo-API#create-a-yahoo-fantasy-sports-app)
-    - Go to the [Yahoo Developer Dashboard](https://developer.yahoo.com/apps/)
-    - Click "Create an App"
-    - Set:
-        - Application Name: `(any name you want)`
-        - OAuth Client Type: `Confidential Client`
-        - Permissions: check `Fantasy Sports`
-
-    - After creation, save your `Client ID` and `Client Secret`
-    - Set a placeholder Redirect URI, such as `https://localhost/` (you won't need to host this)
----
-
-4. Rename and configure your Yahoo app credentials
-
-    - In the `yfpyauth/` directory, rename:
-    `.env.private.example` → `.env.private`
-
-    - Open `.env.private` and fill in the credentials from your Yahoo Developer app:
-
-   ```env
-    CONSUMER_KEY=<YAHOO_API_KEY>
-    CONSUMER_SECRET=<YAHOO_API_SECRET>
-   ```
----
-
-5. Get your Yahoo Fantasy Football League ID
-
-    - Go to your Yahoo Fantasy Football league in a browser
-
-    - Look at the URL — your League ID will appear like this:
-    `https://football.fantasysports.yahoo.com/f1/123456` → Your League ID is 123456
-
----
-
-6. Rename and configure your environment file
-
-    - In the `yfpyauth/` directory, rename:
-    `.env.config.example` → `.env.config`
-
-    - Open `.env.config` and set the following values:
-
-    ```env
-    LEAGUE_ID=<YOUR_LEAGUE_ID>
-    GAME_CODE=NFL
-    GAME_ID= # Leave empty to default to the current NFL season
-   
+1.  **Clone the repository:**
+    ```bash
+    git clone [https://github.com/vrabit/fantasybot.git](https://github.com/vrabit/fantasybot.git)
+    cd fantasybot
     ```
----
-
-7. [Set up your Discord bot](https://github.com/vrabit/fantasybot/wiki/Discord-Setup#set-up-your-discord-bot)
-
-    - Create a new [Discord bot application](https://discord.com/developers/applications)
-
-    - Bot Tab: Enable `Message Content Intent`
-     
-    - OAuth2 Tab: Generate an invite link using the correct OAuth scopes and permissions (e.g., via the Discord Permissions Calculator)
-
-       <details> <summary>📌🔐 Required OAuth2 Scopes / Permissions</summary>
-          
-         | Action                   | Permission Name                        | Hex Value             |
-         | ------------------------ | -------------------------------------- | --------------------- |
-         | Slash command usage      | `applications.commands` *(scope only)* | –                     |
-         | Bot                      | `bot` *(scope only)*                   | –                     |
-         | Manage roles             | `Manage Roles`                         | `0x10000000`          |
-         | Send messages            | `Send Messages`                        | `0x00000800`          |
-         | Create public threads    | `Create Public Threads`                | `0x00010000`          |
-         | Create private threads   | `Create Private Threads`               | `0x00020000`          |
-         | Send messages in threads | `Send Messages in Threads`             | `0x00040000`          |
-         | Manage messages          | `Manage Messages`                      | `0x00002000`          |
-         | Manage threads           | `Manage Threads`                       | `0x04000000`          |
-         | Send embedded messages   | `Embed Links`                          | `0x00004000`          |
-         | Attach files             | `Attach Files`                         | `0x00002000`          |
-         | Read message history     | `Read Message History`                 | `0x00010000`          |
-         | Add reactions            | `Add Reactions`                        | `0x00000040`          |
-         | Use slash commands       | `Use SlashCommands`                    | `0x00000800`          |
-         | Create polls             | `Create Polls`                         | `0x2000000000000`     |
-
-
-       </details>
-
-    - Set `Integration Type` to Guild Install
-   
-    - Use `Generated URL` to invite the bot to your server
+2.  **Install dependencies using `uv` (recommended):**
+    ```bash
+    uv sync
+    ```
+    *Note: If `uv` is not available, you can use `pip install -r requirements.txt` after creating a virtual environment.*
+3.  **Fill out your `.env` files:** (Refer to the Wiki for detailed instructions.)
+4.  **Run the bot:**
+    ```bash
+    uv run main.py
+    ```
 
 ---
 
-8.
-    In the `discordauth/` directory, rename:
-    `.env.discord.example` → `.env.discord`
+### Initial Discord Setup (Commands):
 
-    Fill in your Discord bot credentials:
+Once running, interact with the bot in your Discord server to enable features:
 
-     ```env
-    DISCORD_TOKEN=<YOUR_DISCORD_BOT_TOKEN>
-    APP_ID=<YOUR_DISCORD_APP_ID>
-    GUILD_ID=<YOUR_DISCORD_SERVER_ID>
-    MANAGER_ROLE=<NUMERIC_ROLE_ID>
+* `/set_news`: Designates a channel for Rotowire news updates.
+* `/set_transactions_channel`: Sets a channel for automatic fantasy league transaction posts.
+* `/set_slap_channel`: Activates slap challenges and assigns a channel for results (requires wagers to be enabled).
+* `/enable_wagers`: Enables the wager system and manages the token vault.
 
-     ```
+### 📚 Full Setup Guide & Commands
 
-    ⚠️ GUILD_ID is needed for registering slash commands in a development/test server.
-    
-</details>
+For detailed, step-by-step installation instructions (including Discord and Yahoo API setup with images), troubleshooting, and a complete list of all available commands, please visit our comprehensive Wiki:
 
-### Run the bot
+👉 [**FantasyBot Wiki - Setup Guide**](https://github.com/vrabit/fantasybot/wiki) 👈
 
-   ```bash
-   python main.py
+---
+## 📸 In Action
+
+See FantasyBot's features come to life! (Replace these with your actual screenshots/GIFs)
+
+* **Live Matchup Scores:**
+    [Screenshot/GIF showing a command like `/matchups` and the bot's rich embed response with current fantasy team points]
+
+* **Interactive Wager System:**
+    [Screenshot/GIF showing the `/wager` command interaction with dropdowns and buttons]
+
+* **Season Recap Visualizations:**
+    [Screenshot/GIF showing a generated Seaborn graph (e.g., Podium or Bump Chart)]
+
+* **Trade Evaluation Chart:**
+    [Screenshot/GIF showing the bar chart generated by `/trade_evaluate`]
+
+---
+
+## 💻 Built With
+
+* **Python**
+* [`discord.py`](https://github.com/Rapptz/discord.py) (for Discord interaction)
+* [`YFPY`](https://github.com/uberfastman/yfpy) - Yahoo Fantasy Sports API Wrapper by Wren J. R. (uberfastman)
+* [`uv`](https://github.com/astral-sh/uv) (dependency management and project runner)
+* **Yahoo Fantasy Sports API**
+* **FantasyCalc API**
+* **Rotowire RSS Feed**
+* **Seaborn** (for data visualization)
+
+---
 
    ```
