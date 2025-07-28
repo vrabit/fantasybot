@@ -224,12 +224,6 @@ class MaintainVault(commands.Cog):
     # Execute Contracts 
     ###################################################
 
-    async def print_predictions(self, predictions):
-        print('----predictions----')
-        for prediction in predictions:
-            print(prediction)
-
-
     async def execute_wager(self, contract:Vault.GroupWagerContract, week_dict:dict[str:Any]):
         if await contract.empty():
             logger.info('[MaintainVault] - No Predictions to account to parse.')
@@ -251,8 +245,6 @@ class MaintainVault(commands.Cog):
             logger.info("[MaintainVault][execute_wager] - Refunding prediction.")
             return
 
-        await self.print_predictions(contract.predictions)
-
         # winner
         if team_1_total_points > team_2_total_points:
             winner_id = contract.team_1_id
@@ -264,9 +256,6 @@ class MaintainVault(commands.Cog):
             return
 
         winner_list = [prediction for prediction in contract.predictions if prediction.prediction_team == winner_id]
-        print('---winner list---')
-        print(f'winner id: {winner_id}')
-        print(winner_list)
         if winner_list:
             closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points))
             logger.info(f'[MaintainVault][execute_wager] - Team {closest_prediction.gambler.discord_tag} wins {contract.winnings} tokens.')
@@ -362,8 +351,10 @@ class MaintainVault(commands.Cog):
 
             gambler:Vault.BankAccount = await Vault.bank_account_by_discord_id(str(interaction.user.id))              
             try:
-                prediction_team_id = await utility.discord_to_teamid(int(self.team_id), self.outer._persistent_manager)
-                await self.wager.add_prediction(gambler=gambler, prediction_id=prediction_team_id, prediction_points=points, amount = self.outer._default_wager_amount)
+                prediction = await Vault.bank_account_by_discord_id(self.team_id)
+                if not prediction:
+                    raise ValueError("Member doesn't exist")
+                await self.wager.add_prediction(gambler=gambler, prediction_id=prediction.fantasy_id, prediction_points=points, amount = self.outer._default_wager_amount)
             except Exception as e:
                 message = f"Add prediction failed. Error: {e}"
                 logger.warning(message)
@@ -504,8 +495,8 @@ class MaintainVault(commands.Cog):
         return select
 
 
-    @app_commands.command(name='place_wager', description="Place a wager on one of this week's matchups.")
-    async def place_wager(self, interaction:discord.Interaction):
+    @app_commands.command(name='wager', description="Place a wager on one of this week's matchups.")
+    async def wager(self, interaction:discord.Interaction):
         if not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.wagers_enabled:
             message = f"Either Wagers or Vault Disabled. \n {self.bot.state.bot_features}"
             logger.warning(f'[MaintainVault] - {message}')
@@ -522,45 +513,26 @@ class MaintainVault(commands.Cog):
         await interaction.response.send_message("Select Matchup to Wager on.", view=view, ephemeral=True)
 
 
-    @app_commands.command(name='wager', description="Place a wager on one of this week's matchups.")
-    @app_commands.describe(discord_user="Player's Discord Tag", points_prediction="Total, 'COMBINED', points at end of matchup.")
-    async def wager(self, interaction:discord.Interaction, discord_user:discord.User, points_prediction:int):
+    @app_commands.command(name='wager_leaderboard', description="Token Leaderboard.")
+    async def wager_leaderboard(self, interaction:discord.Interaction):
         await interaction.response.defer(ephemeral=True)
-        
-        if not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.wagers_enabled:
-            message = f"Either Wagers or Vault Disabled. \n {self.bot.state.bot_features}"
-            logger.warning(f'[MaintainVault] - {message}')
-            await interaction.followup.send(message)
-            return
-
-        if not await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
-            await self.create_current_week_wagers()
-        
-
-        gambler:Vault.BankAccount = await Vault.bank_account_by_discord_id(str(interaction.user.id))
-        prediction_bank_account:Vault.BankAccount = await Vault.bank_account_by_discord_id(discord_id=str(discord_user.id))
-        wager:Vault.GroupWagerContract = await Vault.get_wager(fantasy_id = prediction_bank_account.fantasy_id)
-
-        if gambler is None:
-            await interaction.followup.send('Your BankAccount was not found.')
+        if not self.bot.state.bot_features.vault_enabled:
+            logger.warning('[MaintainVault] - enable_vault to use wager_leaderboard.')
+            await interaction.follow.send('Vault not enabled. Use enable_vault to use wager features.')
             return
         
-        if wager is None:
-            await interaction.followup.send('Matchup not found.')
-            return
-        
-        try:
-            await wager.add_prediction(gambler=gambler, prediction_id=prediction_bank_account.fantasy_id, prediction_points=points_prediction, amount = self._default_wager_amount)
-        except Exception as e:
-            message = f"Add prediction failed. Error: {e}"
-            logger.warning(message)
-            await interaction.followup.send(message)
-            return
-        await self.store_all()
+        today = datetime.today()
+        embed = discord.Embed(title='Wager Leaderboard', description='Current token standings.', color=self.emb_color, timestamp=today)
 
-        message = f"{interaction.user.mention} successfully placed {self._default_wager_amount} tokens on {prediction_bank_account.discord_tag}."
-        logger.info(message)
-        await interaction.followup.send(message)
+        accounts = await self._vault_manager.load_json(filename=self._vault_accounts_filename)
+        sorted_accounts = sorted(accounts, key=lambda x:int(x.get('money')), reverse=True)
+
+        for account in sorted_accounts:
+
+            value = utility.to_block(f'Tokens: {account.get('money')}\nFantasy ID: {account.get('fantasy_id')}') + f'{account.get('discord_tag')}'
+            embed.add_field(name=account.get('name'), value=value, inline=False)
+
+        await interaction.followup.send(embed=embed)
 
 
     ###################################################

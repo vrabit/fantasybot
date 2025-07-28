@@ -728,8 +728,12 @@ class FantasyQuery(commands.Cog):
         async with self.bot.state.fantasy_query_lock:
             fantasy_league = self.bot.state.fantasy_query.get_league()['league']
 
+
         week = fantasy_league.current_week
-        last_week = week - 1
+        if await FantasyHelper.season_over(fantasy_league):
+            last_week = week
+        else:
+            last_week = week - 1
 
         if last_week <= 0:
             await interaction.followup.send("Error: Week 1 hasn't ended.",ephemeral=False)

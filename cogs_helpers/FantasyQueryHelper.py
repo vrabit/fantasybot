@@ -122,7 +122,7 @@ async def add_matchup_fields_team(team:Team, embed) -> None:
         name = f"{team.name.decode('utf-8')} - Id: {team.team_id}",
         value = (
             f'{utility.to_blue_text(f'{team.points:.2f}{team.team_projected_points.total:>11.2f}')}'  
-            f'WP:  {(team.win_probability*100):3.0f}% ({team.wins}-{team.losses}-{team.ties})'
+            f'WP:  {(team.win_probability*100):3.0f}%'
         ),
         inline = True
     )
@@ -132,6 +132,7 @@ async def add_matchup_fields_team_list(team_list:list[Team], embed) -> None:
     for team in team_list:
         await add_matchup_fields_team(team, embed)
     embed.add_field(name = '\u200b', value = '\u200b')
+
 
 async def add_matchup_fields(matchup_list:list[Matchup], embed:discord.Embed) -> None:
     for matchup in matchup_list:
