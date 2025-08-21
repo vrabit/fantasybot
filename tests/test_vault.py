@@ -1,7 +1,6 @@
 import pytest
 from datetime import datetime, timedelta, date
 from collections import deque
-from exceptions.vault_exceptions import ExpirationDateError
 
 from bet_vault.vault import Vault
 
@@ -381,11 +380,11 @@ async def test_contract_initialization():
     contract = Vault.Contract(amount=100, expiration_date=date_today, week=4)
 
     assert contract.expiration.date() == date.today()    
-    assert contract.executed == False
+    assert not contract.executed
     assert contract.week == 4
     assert contract.contract_type == 'Contract'
     assert contract.amount == 100 
-    assert contract._new == True
+    assert contract._new
 
 
 #############################################################################
@@ -404,11 +403,11 @@ async def test_slap_contract_initialization(setup_accounts):
     assert contract.challenger.money == 0
     assert contract.challengee.money == 0 
     assert contract.expiration.date() == date.today()    
-    assert contract.executed == False
+    assert not contract.executed
     assert contract.week == 4
     assert contract.contract_type == 'SlapContract'
     assert contract.amount == 100 
-    assert contract._new == True
+    assert contract._new
 
 
 @pytest.mark.asyncio
@@ -418,7 +417,7 @@ async def test_contract_initialization_insufficient_funds(setup_accounts):
     date_today = datetime.today()
     
     with pytest.raises(ValueError):
-        contract = Vault.SlapContract(challenger=account1, challengee=account2, amount = 101, expiration_date=date_today, week=4)
+        Vault.SlapContract(challenger=account1, challengee=account2, amount = 101, expiration_date=date_today, week=4)
 
 
 @pytest.mark.asyncio
@@ -428,7 +427,7 @@ async def test_contract_initialization_negative_amount(setup_accounts):
     date_today = datetime.today()
     
     with pytest.raises(ValueError):
-        contract = Vault.SlapContract(challenger=account1, challengee=account2, amount = -50, expiration_date=date_today, week=4)
+        Vault.SlapContract(challenger=account1, challengee=account2, amount = -50, expiration_date=date_today, week=4)
 
 
 @pytest.mark.asyncio
@@ -453,12 +452,12 @@ async def test_execute_slap_contract_success(setup_vault_accounts):
     contract = Vault.SlapContract(challenger=account1, challengee=account2, amount=50, expiration_date=yesterday, week=4)
     assert account1.money == 50
     assert account2.money == 50
-    assert contract.executed == False
+    assert not contract.executed 
 
     await contract.execute_contract(account1)
     assert account1.money == 150
     assert account2.money == 50
-    assert contract.executed == True
+    assert contract.executed 
 
 
 @pytest.mark.asyncio
@@ -538,7 +537,7 @@ async def test_slap_multiple_execution(setup_vault_accounts):
     )
 
     ready = await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__)
-    assert ready == True
+    assert ready 
     contract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
     assert contract.challenger == account1
     assert contract.challengee == account2
@@ -549,7 +548,7 @@ async def test_slap_multiple_execution(setup_vault_accounts):
     assert account2.money == 150
     
     ready = await Vault.ready_to_execute(contract_type=Vault.SlapContract.__name__)
-    assert ready == True
+    assert ready 
     contract = await Vault.get_next_contract(contract_type=Vault.SlapContract.__name__)
     await contract.execute_contract(account3)
 
@@ -642,7 +641,7 @@ async def test_group_simple_wager_contract(setup_vault_accounts):
 
     gambler_acc = Vault.accounts.get('3')
     await wager.add_prediction(gambler=gambler_acc, prediction_id='2', prediction_points=45, amount=5)
-    assert wager.executed == False
+    assert not wager.executed 
 
     assert wager.winnings == 5
     assert len(wager.predictions) == 1
@@ -650,7 +649,7 @@ async def test_group_simple_wager_contract(setup_vault_accounts):
 
     await wager.execute_contract(gambler_acc)
     assert Vault.accounts.get('3').money == 100
-    assert wager.executed == True
+    assert wager.executed 
 
     with pytest.raises(ValueError):
         await wager.execute_contract(gambler_acc)
@@ -679,11 +678,11 @@ async def test_group_wager_contract_duplicate(setup_vault_accounts):
 async def test_group_wager_interface(setup_vault_accounts):
     yesterday = datetime.today() - timedelta(days = 1)
     exists = await Vault.wager_by_id_exists(id='8')
-    assert exists == False
+    assert not exists 
 
     await Vault.create_contract(team_1_id='8', team_2_id='9', expiration_date=yesterday, week=4, contract_type=Vault.GroupWagerContract.__name__)
     exists = await Vault.wager_by_id_exists(id='8')
-    assert exists == True
+    assert exists 
 
     slap_contracts_len = await Vault.len_contracts(contract_type=Vault.SlapContract.__name__)
     wager_contract_len = await Vault.len_contracts(contract_type=Vault.GroupWagerContract.__name__)
@@ -748,8 +747,8 @@ async def test_group_wager_execution(setup_vault_accounts):
 async def test_load_and_store(setup_vault_accounts_and_wager_contracts):
     found = await Vault.wager_by_id_exists('3')
     not_found = await Vault.wager_by_id_exists('20')
-    assert found == True
-    assert not_found == False
+    assert found 
+    assert not not_found 
     assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 2
     assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 3
 
@@ -827,8 +826,8 @@ async def test_load_and_store(setup_vault_accounts_and_wager_contracts):
 async def test_load_and_store_bonus(setup_vault_accounts_and_wager_contracts_with_bonus_and_predictions):
     found = await Vault.wager_by_id_exists('3')
     not_found = await Vault.wager_by_id_exists('20')
-    assert found == True
-    assert not_found == False
+    assert found 
+    assert not not_found 
     assert len(Vault.contracts.get(Vault.SlapContract.__name__)) == 2
     assert len(Vault.contracts.get(Vault.GroupWagerContract.__name__)) == 3
 

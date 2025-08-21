@@ -4,7 +4,7 @@ from pathlib import Path
 
 from yfpy.query import YahooFantasySportsQuery
 from fantasy import fantasyQuery
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv

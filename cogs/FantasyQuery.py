@@ -3,7 +3,6 @@ from discord import app_commands
 from discord.ext import tasks, commands
 
 from typing import Optional
-import pandas as pd
 
 from cogs_helpers import FantasyQueryHelper, FantasyHelper
 import utility
@@ -121,7 +120,7 @@ class FantasyQuery(commands.Cog):
         @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
         async def second_button_callback(self, interaction:discord.Interaction, button:discord.Button):
             await self.disable_buttons()
-            await interaction.response.send_message(f"Canceled operation.", ephemeral=True)
+            await interaction.response.send_message("Canceled operation.", ephemeral=True)
 
 
     class TeamSelect(discord.ui.Select):
@@ -1143,7 +1142,7 @@ class FantasyQuery(commands.Cog):
 
     @tasks.loop(minutes=1440)
     async def store_data(self):
-        if self.bot.state.bot_features.log_season_enabled == False:
+        if not self.bot.state.bot_features.log_season_enabled:
             logger.info("[FantasyQuery][store_data] - Season Log disabled.\n To resolve, run the 'enable_log' Command." )
             return
 

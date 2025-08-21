@@ -8,7 +8,6 @@ from yfpy.models import League, Transaction
 
 from difflib import get_close_matches
 from datetime import datetime
-import utility
 import asyncio
 
 import json
@@ -368,7 +367,7 @@ class TransactionsLog(commands.Cog):
     
 
     async def is_enabled(self):
-        while(self.bot.state.bot_features.transactions_enabled == False):
+        while(not self.bot.state.bot_features.transactions_enabled):
             await asyncio.sleep(2)
 
 

@@ -6,8 +6,6 @@ import asyncio
 from datetime import datetime, date, timedelta
 from pathlib import Path
 
-from yfpy.models import GameWeek
-
 from bet_vault.vault import Vault
 import utility
 from cogs_helpers import FantasyHelper
@@ -306,7 +304,7 @@ class SlapChallenge(commands.Cog):
 
 
     async def is_enabled(self):
-        while(self.bot.state.bot_features.vault_enabled == False and self.bot.state.bot_features.slaps_enabled == False):
+        while(not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.slaps_enabled):
             await asyncio.sleep(2)
 
     async def wait_for_fantasy(self):

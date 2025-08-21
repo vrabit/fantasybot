@@ -5,10 +5,6 @@ from discord.ext import commands
 import asyncio
 
 from pathlib import Path
-from bet_vault.vault import Vault
-from difflib import get_close_matches
-from datetime import datetime
-
 import logging
 logger = logging.getLogger(__name__)
 

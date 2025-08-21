@@ -10,7 +10,7 @@ from pathlib import Path
 from bet_vault.vault import Vault
 from datetime import datetime, timedelta, date
 
-from yfpy.models import GameWeek, Matchup
+from yfpy.models import Matchup
 
 from cogs_helpers import FantasyHelper
 from collections import deque
@@ -262,7 +262,7 @@ class MaintainVault(commands.Cog):
             await contract.execute_contract(winner=closest_prediction.gambler)
             await self.display_wager_results(contract=contract, team_1_pts=team_1_total_points, team_2_pts=team_2_total_points, total_points=total_points,closest_prediction=closest_prediction, winners_list=winner_list)
         else:
-            logger.info(f'[MaintainVault][eecute_wager] - Winners list is empty')
+            logger.info('[MaintainVault][eecute_wager] - Winners list is empty')
             await contract.refund()
 
 
@@ -454,7 +454,7 @@ class MaintainVault(commands.Cog):
         @discord.ui.button(label="Cancel", style=discord.ButtonStyle.danger)
         async def second_button_callback(self, interaction:discord.Interaction, button:discord.Button):
             await self.disable_buttons()
-            await interaction.response.send_message(f"Canceled operation.", ephemeral=True)
+            await interaction.response.send_message("Canceled operation.", ephemeral=True)
 
 
     class MatchupSelect(discord.ui.Select):
@@ -708,7 +708,7 @@ class MaintainVault(commands.Cog):
         if not current_week_data:
             raise ValueError("[MaintainVault][week_start_check] - Invalid week.")
             
-        if current_week_data.get("distributed") == True:
+        if current_week_data.get("distributed"):
             return
         
         await self.distribute_weekly_funds(current_week_data=current_week_data)
@@ -747,7 +747,7 @@ class MaintainVault(commands.Cog):
         _, end_date = await FantasyHelper.get_current_week_dates(self.bot, current_week, self._week_dates_filename)
         
         if date.today() == end_date.date():
-            logger.info(f"[MaintainVault][end_week_tasks] - End of Week: Removing week's assigned roles.")
+            logger.info("[MaintainVault][end_week_tasks] - End of Week: Removing week's assigned roles.")
             await self.remove_challenge_roles()
         else:
             logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week}'s end date: {end_date}, Current date: {date.today()}")
@@ -877,7 +877,7 @@ class MaintainVault(commands.Cog):
     ####################################################
 
     async def is_enabled(self):
-        while(self.bot.state.bot_features.vault_enabled == False):
+        while(not self.bot.state.bot_features.vault_enabled):
             await asyncio.sleep(2)
 
 
@@ -908,7 +908,7 @@ class MaintainVault(commands.Cog):
                 fantasy_query = self.bot.state.fantasy_query
             async with self.bot.state.memlist_ready_lock:
                 memlist_ready = self.bot.state.memlist_ready
-            if memlist_ready == True and fantasy_query is not None:
+            if memlist_ready and fantasy_query is not None:
                 self._ready_to_init = True
             else:
                 await asyncio.sleep(1)   

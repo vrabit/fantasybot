@@ -11,7 +11,7 @@ import utility
 ################################################################
 
 async def check_if_lower_pts(team:Team, lowest:Team) -> Team:
-    if lowest == None:
+    if lowest is None:
         lowest = team
     elif team.team_points.total < lowest.team_points.total:
         lowest = team
@@ -36,7 +36,7 @@ async def lowest_points_matchup_list(matchups:list[Matchup]) -> Team:
 ################################################################
 
 async def check_if_higher_pts(team:Team, highest:Team) -> Team:
-    if highest == None:
+    if highest is None:
         highest = team
     elif team.team_points.total > highest.team_points.total:
         highest = team

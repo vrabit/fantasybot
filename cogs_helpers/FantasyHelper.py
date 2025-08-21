@@ -1,7 +1,6 @@
 import discord
 
-import file_manager
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 from yfpy.models import GameWeek
 
 import logging

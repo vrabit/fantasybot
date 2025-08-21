@@ -4,10 +4,7 @@ from discord import app_commands, PollLayoutType
 from typing import Optional
 
 from pathlib import Path
-
-import requests
 import asyncio
-import os
 
 from collections import deque
 from difflib import get_close_matches
@@ -18,12 +15,10 @@ import seaborn as sns
 import pandas as pd
 from io import BytesIO
 import imageio
-from natsort import natsorted
 import matplotlib.gridspec as gridspec
 
 from datetime import datetime, timedelta
 import utility
-import aiohttp
 
 import logging
 logger = logging.getLogger(__name__)
@@ -227,7 +222,7 @@ class TradeValue(commands.Cog):
             ax.set_xlim(0,df_data['cumulative_value'].max() + 5000)
             
             ax.set_facecolor("#E6F2EB")
-            plt.title(f'Trade Value')
+            plt.title('Trade Value')
             plt.xlabel('Total Trade Value')
             plt.ylabel('')
             plt.tight_layout()
@@ -575,7 +570,7 @@ class TradeValue(commands.Cog):
         ax.set_xlim(0,df_data['cumulative_value'].max() + 2000)
         
         ax.set_facecolor("#E6F2EB")
-        plt.title(f'Trade Value')
+        plt.title('Trade Value')
         plt.xlabel('Total Trade Value')
         plt.ylabel('')
         plt.tight_layout()

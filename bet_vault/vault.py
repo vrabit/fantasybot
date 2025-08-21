@@ -4,8 +4,6 @@ from functools import wraps
 from collections import deque
 from datetime import datetime, date
 from exceptions.vault_exceptions import ExpirationDateError
-from file_manager import BaseFileManager
-from fantasy import fantasyQuery
 import math
 import logging
 logger = logging.getLogger(__name__)
@@ -214,7 +212,7 @@ class Vault():
                 raise ExpirationDateError(f'Contract Expires on {date.today()}')
 
             if self.challenger != winner and self.challengee != winner:
-                raise ValueError(f'Invalid winner account.')
+                raise ValueError('Invalid winner account.')
             else:
                 winner.money += self.winnings
             self.executed = True
@@ -466,7 +464,7 @@ class Vault():
                 raise ExpirationDateError(f'Contract Expires on {date.today()}')
 
             if not await self.account_in_deque(winner):
-                raise ValueError(f'Invalid winner account.')
+                raise ValueError('Invalid winner account.')
 
             winner.money += self.winnings
             self.executed = True
@@ -503,7 +501,7 @@ class Vault():
         @name.setter
         def name(self, result):
             if not isinstance(result, str):
-                raise ValueError(f'Expecting a string.')
+                raise ValueError('Expecting a string.')
             self._name = result
 
 
@@ -530,7 +528,7 @@ class Vault():
         @money.setter
         def money(self, result):
             if result < 0:
-                raise ValueError(f'Balance cannot be negative.')
+                raise ValueError('Balance cannot be negative.')
             self._money = result
 
 
@@ -758,9 +756,9 @@ class Vault():
         receive_account= cls.accounts.get(to_fantasy_id)
 
         if not isinstance(amount, int) or not isinstance(from_fantasy_id,str) or not isinstance(to_fantasy_id,str):
-            raise TypeError(f'Expecting an integer for amount.')
+            raise TypeError('Expecting an integer for amount.')
         if not send_account or not receive_account:
-            raise ValueError(f'Account not found.')
+            raise ValueError('Account not found.')
         if send_account.money < amount:
             raise ValueError(f'Insufficient funds. Current Balance{send_account.money}')
         
@@ -773,11 +771,11 @@ class Vault():
         account = cls.accounts.get(fantasy_id)
 
         if not isinstance(amount, int) or not isinstance(fantasy_id,str):
-            raise TypeError(f'Invalid entry types.')
+            raise TypeError('Invalid entry types.')
         if amount < 0:
-            raise ValueError(f'Amount cannot be negative.')
+            raise ValueError('Amount cannot be negative.')
         if not account:
-            raise ValueError(f'Account not found.')
+            raise ValueError('Account not found.')
         if account.money < amount:
             raise ValueError(f'Insufficient funds. Current Balance {account.money}')
 
@@ -789,9 +787,9 @@ class Vault():
         account = cls.accounts.get(fantasy_id)
 
         if not isinstance(amount, int) or not isinstance(fantasy_id,str):
-            raise TypeError(f'Invalid entry types.')
+            raise TypeError('Invalid entry types.')
         if amount < 0:
-            raise ValueError(f'Amount cannot be negative.')
+            raise ValueError('Amount cannot be negative.')
         if not account:
             raise ValueError(f'Account {fantasy_id} not found.')
         account.money += amount

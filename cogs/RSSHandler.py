@@ -4,7 +4,6 @@ from discord.ext import tasks, commands
 from pathlib import Path
 import asyncio
 
-import os
 from collections import deque
 from yfpy.models import Team
 import feedparser
@@ -144,7 +143,7 @@ class RSSHandler(commands.Cog):
     ###################################################
 
     async def is_enabled(self):
-        while(self.bot.state.bot_features.news_enabled == False):
+        while(not self.bot.state.bot_features.news_enabled):
             await asyncio.sleep(2)
 
 
