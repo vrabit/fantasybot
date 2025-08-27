@@ -63,6 +63,14 @@ FantasyBot is designed to enhance your fantasy football experience with a suite 
     ```bash
     uv run main.py
     ```
+    
+**Important Note on Setup:**
+
+The bot creates a crucial `members.json` file during its initial run, which contains a complete list of all league members and their corresponding team IDs. This file is required for nearly all of the bot's features.
+
+To ensure this file is accurate and includes all teams, it's highly recommended you only run the bot after every member has officially joined the league.
+
+If the bot is run prematurely, the `members.json` file will be missing some members. The simplest solution is to delete the `members.json` file from the bot's directory. A new, updated file will be automatically generated the next time the bot is run.
 
 ---
 
