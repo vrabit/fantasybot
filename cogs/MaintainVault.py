@@ -518,7 +518,7 @@ class MaintainVault(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         if not self.bot.state.bot_features.vault_enabled:
             logger.warning('[MaintainVault] - enable_vault to use wager_leaderboard.')
-            await interaction.follow.send('Vault not enabled. Use enable_vault to use wager features.')
+            await interaction.followup.send('Vault not enabled. Use enable_vault to use wager features.')
             return
         
         today = datetime.today()
@@ -543,6 +543,13 @@ class MaintainVault(commands.Cog):
     @app_commands.command(name='enable_vault', description='Enables Vault and wagers. Only run after binding all users.')
     async def enable_vault(self,interaction:discord.Interaction):
         await interaction.response.defer()
+        members = await self._persistent_manager.load_json(self._members_filename)
+        for member in members:
+            id = member.get('discord_id')
+            if not id:
+                await interaction.followup.send('Use Bind commands to bind all yahoo_ids to discord_ids before enabling wagers.')
+                return
+            
         await self.bot.state.bot_features.enable_wagers()
         await interaction.followup.send('Vault and Wagers Enabled.')
 

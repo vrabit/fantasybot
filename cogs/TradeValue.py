@@ -745,6 +745,14 @@ class TradeValue(commands.Cog):
     @app_commands.describe(discord_user="Discord Tag")
     async def season_team_value_comparison(self, interaction:discord.Interaction, discord_user:discord.User):
         await interaction.response.defer()
+
+        async with self.bot.state.league_lock:
+            current_week = self.bot.state.league.current_week
+
+        if current_week == 1:
+            await interaction.followup.send('This command will be available after week 1 is concluded.')
+            return
+
         user_team_id:str = await utility.discord_to_teamid(interaction.user.id, self.bot.state.persistent_manager)
         opponent_team_id:str = await utility.discord_to_teamid(discord_user.id, self.bot.state.persistent_manager)
 
@@ -783,6 +791,10 @@ class TradeValue(commands.Cog):
             league = self.bot.state.league
         current_week = league.current_week
 
+        if current_week == 1:
+            await interaction.followup.send('This command will be available after week 1 is concluded.')
+            return 
+        
         df_roster = await self.bot.state.recap_manager.load_csv_formatted(self._roster_csv)
 
         df_plot_ready, df_cleaned_full, _, all_positions = await self.radar_DataFrame(df_roster)

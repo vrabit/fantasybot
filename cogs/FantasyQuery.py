@@ -75,6 +75,7 @@ class FantasyQuery(commands.Cog):
             self.members_filename = self.bot.state.members_filename
             self.selected_members = selected_members
             self.options = options
+            self.message = None
 
         async def disable_buttons(self):
             for child in self.children:
@@ -90,7 +91,7 @@ class FantasyQuery(commands.Cog):
 
             if self.message:
                 embed = discord.Embed(title = 'Bind', description = 'Operation Expired',color = self.emb_color)
-                await self.message.edit(embed = embed,view = self)
+                await self.message.edit_message(embed = embed,view = self)
 
 
         async def on_error(self,interaction:discord.Interaction, error, item):
@@ -134,8 +135,9 @@ class FantasyQuery(commands.Cog):
             self.members_filename = outer.bot.state.members_filename
 
         async def callback(self, interaction: discord.Interaction):
-            view = FantasyQuery.TeamSelectConfirmView(self,self.values,self.options)
+            view = FantasyQuery.TeamSelectConfirmView(self.outer,self.values,self.options)
             await interaction.response.send_message("Are you sure?", view=view, ephemeral=True)
+            self.message = interaction.response
 
 
     async def construct_team_select(self):
@@ -543,17 +545,21 @@ class FantasyQuery(commands.Cog):
         async with self.bot.state.fantasy_query_lock:
             standings = self.bot.state.fantasy_query.get_all_standings(self.bot.state.league.num_teams)
 
-        sorted_standings = sorted(standings, key = lambda tup: int(tup[1].rank))
+        sorted_standings = sorted(standings, key = lambda tup: int(tup[1].rank) if tup[1].rank is not None else float('inf'))
 
         # load names 
         players_dict_list = await self.bot.state.persistent_manager.load_json(filename=self.members_filename)
-
+        
         embed = discord.Embed(title = 'Current Rankings', url='', description = '', color = self.emb_color)
         for players in sorted_standings:
             current_player = players_dict_list[players[0]-1]
 
             record = f'({players[1].outcome_totals.wins}-{players[1].outcome_totals.losses}-{players[1].outcome_totals.ties})'
-            rank = format('Rank: ', '<15') + format(players[1].rank, '<1')
+
+            if players[1].rank:
+                rank = format('Rank: ', '<15') + format(players[1].rank, '<1')
+            else:
+                rank = 'Rank: Not Available'
             points = format('Pts for: ', '<15') + format(str(players[1].points_for), '<1')
             points_against = format('Pts against: ','<15') + format(str(players[1].points_against), '<1') 
             streak = format('Streak: ' , '<15') + format(f'{players[1].streak.type} - {players[1].streak.value}','<1')
@@ -581,7 +587,11 @@ class FantasyQuery(commands.Cog):
             current_player = players_dict_list[players[0]-1]
 
             record = f'({players[1].outcome_totals.wins}-{players[1].outcome_totals.losses}-{players[1].outcome_totals.ties})'
-            rank = format('Rank: ', '<15') + format(players[1].rank, '<1')
+            
+            if players[1].rank:
+                rank = format('Rank: ', '<15') + format(players[1].rank, '<1')
+            else:
+                rank = 'Rank: Not Available'
             points = format('Pts for: ', '<15') + format(str(players[1].points_for), '<1')
             points_against = format('Pts against: ','<15') + format(str(players[1].points_against), '<1') 
             streak = format('Streak: ' , '<15') + format(f'{players[1].streak.type} - {players[1].streak.value}','<1')
@@ -608,7 +618,11 @@ class FantasyQuery(commands.Cog):
             current_player = players_dict_list[players[0]-1]
 
             record = f'({players[1].outcome_totals.wins}-{players[1].outcome_totals.losses}-{players[1].outcome_totals.ties})'
-            rank = format('Rank: ', '<15') + format(players[1].rank, '<1')
+            
+            if players[1].rank:
+                rank = format('Rank: ', '<15') + format(players[1].rank, '<1')
+            else:
+                rank = 'Rank: Not Available'
             points = format('Pts for: ', '<15') + format(str(players[1].points_for), '<1')
             points_against = format('Pts against: ','<15') + format(str(players[1].points_against), '<1') 
             streak = format('Streak: ' , '<15') + format(f'{players[1].streak.type} - {players[1].streak.value}','<1')
@@ -955,7 +969,6 @@ class FantasyQuery(commands.Cog):
             data += loaded_data
         
         df_player_stats = pd.DataFrame(data)
-
         # fix empty values
         value_columns = ['trend30day', 'redraft_value', 'dynasty_value']
         df_player_stats[value_columns]=df_player_stats[value_columns].apply(pd.to_numeric, errors='coerce')
