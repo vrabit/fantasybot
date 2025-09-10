@@ -10,6 +10,10 @@
     "simple": {
       "format": "[%(levelname)s] %(message)s",
       "datefmt": "%H:%M:%S"
+    },
+    "minimal": {
+        "format": "%(asctime)s - %(message)s",
+        "datefmt": "%Y-%m-%d %H:%M:%S"
     }
   },
 
@@ -28,6 +32,21 @@
       "encoding": "utf8",
       "maxBytes": 1048576, 
       "backupCount": 1
+    },
+    "wager_file_handler": {
+        "class": "logging.FileHandler",
+        "level": "INFO",
+        "formatter": "minimal",
+        "filename": "logs/wagers.log",
+        "encoding": "utf8"
+    }
+  },
+
+  "loggers": {
+    "wager_system": {
+        "level": "INFO",
+        "handlers": ["wager_file_handler"],
+        "propagate": false
     }
   },
 

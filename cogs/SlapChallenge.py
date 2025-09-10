@@ -12,6 +12,7 @@ from cogs_helpers import FantasyHelper
 
 import logging
 logger = logging.getLogger(__name__)
+wager_logger = logging.getLogger('wager_system')
 
 class SlapChallenge(commands.Cog):
     def __init__(self,bot):
@@ -148,9 +149,14 @@ class SlapChallenge(commands.Cog):
                 logger.error(f'[SlapChallenge][AcceptDenyChallenge] - {e}')
                 return
 
-            embed = discord.Embed(title='Slap', description = f'{utility.id_to_mention(self.challengee)} has accepted {utility.id_to_mention(self.challenger)}\'s challenge.',color = self.emb_color)
+            desc = f'{utility.id_to_mention(self.challengee)} has accepted {utility.id_to_mention(self.challenger)}\'s challenge. \nWager Amount = {self.amount}'
+            embed = discord.Embed(title='Slap', description = desc, color = self.emb_color)
             embed.set_image(url = self._challenge_accept_link)
             await interaction.response.edit_message(embed = embed, view=self)
+
+            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has accepted {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge. \nWager Amount = {self.amount}'
+            logger.info(message)
+            wager_logger.info(message)
 
 
         @discord.ui.button(label="Deny", style=discord.ButtonStyle.danger)
@@ -160,7 +166,9 @@ class SlapChallenge(commands.Cog):
             for child in self.children:
                 if isinstance(child,discord.ui.Button):
                     child.disabled = True
-            embed = discord.Embed(title='Slap', description = f'{utility.id_to_mention(self.challengee)} has denied {utility.id_to_mention(self.challenger)}\'s challenge.',color = self.emb_color)
+
+            desc = f'{utility.id_to_mention(self.challengee)} has denied {utility.id_to_mention(self.challenger)}\'s challenge.'
+            embed = discord.Embed(title='Slap', description = desc, color = self.emb_color)
             embed.set_image(url = self._challenge_deny_link)
 
             # give them the denier_role
@@ -169,7 +177,10 @@ class SlapChallenge(commands.Cog):
 
             await self.assign_role(member,self.denier_role_name,channel)
             await interaction.response.edit_message(embed = embed, view=self)
-
+            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has denied {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge.'
+            logger.info(message)
+            wager_logger.info(message)
+            
 
     ###################################################################
     # Slap Command

@@ -18,6 +18,7 @@ import utility
 
 import logging
 logger = logging.getLogger(__name__)
+wager_logger = logging.getLogger('wager_system')
 
 
 class MaintainVault(commands.Cog):
@@ -258,12 +259,18 @@ class MaintainVault(commands.Cog):
         winner_list = [prediction for prediction in contract.predictions if prediction.prediction_team == winner_id]
         if winner_list:
             closest_prediction:Vault.GroupWagerContract.Prediction = min(winner_list, key=lambda p: abs(p.prediction_points - total_points))
-            logger.info(f'[MaintainVault][execute_wager] - Team {closest_prediction.gambler.discord_tag} wins {contract.winnings} tokens.')
+            message = f'[MaintainVault][execute_wager] - Team {closest_prediction.gambler.discord_tag} wins {contract.winnings} tokens.'
+
             await contract.execute_contract(winner=closest_prediction.gambler)
+            logger.info(message)
+            wager_logger.info(message)
+
             await self.display_wager_results(contract=contract, team_1_pts=team_1_total_points, team_2_pts=team_2_total_points, total_points=total_points,closest_prediction=closest_prediction, winners_list=winner_list)
         else:
-            logger.info('[MaintainVault][eecute_wager] - Winners list is empty')
+            message = '[MaintainVault][execute_wager] - Winners list is empty. Points Refunded'
             await contract.refund()
+            logger.info(message)
+            wager_logger.info(message)
 
 
     async def execute_slap(self, contract:Vault.SlapContract, week_dict:dict[str:Any]):
@@ -277,12 +284,19 @@ class MaintainVault(commands.Cog):
             await contract.execute_contract(contract.challenger)
             await self.assign_role(int(contract.challengee.discord_id), self.loser_role_name, self.gold_color)
             await self.display_slap_results(contract, challenger_id)
+
+            message = f'{contract.challenger.discord_tag}:{contract.challenger.discord_id} wins. {contract.challengee.discord_tag}:{contract.challengee.discord_id} assigned loser tag: {self.loser_role_name} for the week.'
         elif challenger_dict.get('total_points') < challengee_dict.get('total_points'):
             await contract.execute_contract(contract.challengee)
             await self.assign_role(int(contract.challenger.discord_id), self.loser_role_name, self.gold_color)   
             await self.display_slap_results(contract, challengee_id, challenger_dict.get('total_points'), challengee_dict.get('total_points'))
+
+            message = f'{contract.challengee.discord_tag}:{contract.challengee.discord_id} wins. {contract.challenger.discord_tag}:{contract.challenger.discord_id} assigned loser tag: {self.loser_role_name} for the week.'
         else:
             await contract.refund()
+            message = f'No winner. {contract.challengee.discord_tag}:{contract.challengee.discord_id} and {contract.challenger.discord_tag}:{contract.challenger._discord_id} refunded.'
+        logger.info(message)
+        wager_logger.info(message)
             
 
     async def execute_by_contract_type(self, contract_type):
@@ -364,6 +378,7 @@ class MaintainVault(commands.Cog):
 
             message = f"{interaction.user.mention} successfully placed {self.outer._default_wager_amount} tokens on {self.prediction_account.discord_tag}."
             logger.info(message)
+            wager_logger.info(message)
             await interaction.response.send_message(message)
 
 
@@ -481,7 +496,7 @@ class MaintainVault(commands.Cog):
 
     async def construct_week_wagers_select(self):
         wagers_deque:deque[Vault.GroupWagerContract] = await Vault.get_all_wagers()
-
+ 
         # build Select
         select = self.MatchupSelect(self, wagers_deque)
         for i, value in enumerate(wagers_deque):
