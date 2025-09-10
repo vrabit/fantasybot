@@ -642,6 +642,37 @@ class TradeValue(commands.Cog):
         return poll
 
 
+    @app_commands.command(name="poll_two",description="Poll with two elements.")
+    @app_commands.describe(message="Description", first="First Element", second="Second Element", time='Time in Hours')
+    async def poll_two(self,interaction:discord.Interaction, message:str, first:str, second:str, time:int):
+        await interaction.response.defer(ephemeral=False)
+        if time <= 0:
+            time = 1
+
+        poll = await self.create_poll(message, [first,second], hours=time, layout=1)
+        await interaction.followup.send(poll=poll)
+
+
+    @app_commands.command(name="poll_three",description="Poll with three elements.")
+    @app_commands.describe(message="Description", first="First Element", second="Second Element", third="Third Element", time='Time in Hours')
+    async def poll_three(self,interaction:discord.Interaction, message:str, first:str, second:str, third:str, time:int):
+        await interaction.response.defer(ephemeral=False)
+        if time <= 0:
+            time = 1
+        poll = await self.create_poll(message, [first, second, third], hours=time, layout=1)
+        await interaction.followup.send(poll=poll)
+
+
+    @app_commands.command(name="poll_four",description="Poll with four elements.")
+    @app_commands.describe(message="Description", first="First Element", second="Second Element", third="Third Element", fourth="Fourth Element", time='Time in Hours')
+    async def poll_four(self,interaction:discord.Interaction, message:str, first:str, second:str, third:str, fourth:str, time:int):
+        await interaction.response.defer(ephemeral=False)
+        if time <= 0:
+            time = 1
+        poll = await self.create_poll(message, [first, second, third, fourth], hours=time, layout=1)
+        await interaction.followup.send(poll=poll)
+
+
     @app_commands.command(name="evaluate_transaction",description="Evaluate trade value")
     @app_commands.describe(transaction_id="Transaction ID number")
     async def evaluate_transaction(self,interaction:discord.Interaction, transaction_id: int):
