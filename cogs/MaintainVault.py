@@ -50,7 +50,7 @@ class MaintainVault(commands.Cog):
 
         # vault 
         self._vault:Vault = None
-        self._initial_bank_funds:int = None
+        self._initial_bank_funds:int = 0
         self._weekly_bank_funds:int = None
         self._default_wager_amount:int = None
         self._default_wager_bonus:int = None
@@ -953,6 +953,9 @@ class MaintainVault(commands.Cog):
         
     @commands.Cog.listener()
     async def on_ready(self): 
+        # Load Variables
+        await self.load_challenge_variables()
+
         # Wait for FantasyQuery Init and memlist init
         await self.wait_for_fantasy_and_memlist()
         logger.info('[MaintainVault] - Memlist and Fantasy Query Awaited.')
@@ -962,7 +965,6 @@ class MaintainVault(commands.Cog):
         logger.info('[MaintainVault] - Enabled')
 
         await self.init_vault()
-        await self.load_challenge_variables()
         logger.info('[MaintainVault] - Initialized MaintainVault')
 
         self.week_start_check.start()
