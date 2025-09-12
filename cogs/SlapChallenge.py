@@ -52,8 +52,9 @@ class SlapChallenge(commands.Cog):
 
     class AcceptDenyChallenge(discord.ui.View):
 
-        def __init__(self, challenges_filename, challenger:int, challengee:int, amount:int, week:int, expiration_date:datetime, vault:Vault, challenge_accept_link:str, challenge_deny_link:str, denier_role_name:str):
+        def __init__(self, outer, challenges_filename, challenger:int, challengee:int, amount:int, week:int, expiration_date:datetime, vault:Vault, challenge_accept_link:str, challenge_deny_link:str, denier_role_name:str):
             super().__init__(timeout = 28800) # 8 hrs
+            self.outer = outer
             self.challenger = challenger
             self.challengee = challengee
             self.amount = amount
@@ -118,9 +119,12 @@ class SlapChallenge(commands.Cog):
 
 
         async def create_vault_contract(self):
+            challenger_fantasy_id = await Vault.fantasy_id_by_discord_id(str(self.challenger))
+            challengee_fantasy_id = await Vault.fantasy_id_by_discord_id(str(self.challengee))
+
             await Vault.create_contract(
-                challenger_fantasy_id=str(self.challenger),
-                challengee_fantasy_id=str(self.challengee),
+                challenger_fantasy_id=challenger_fantasy_id,
+                challengee_fantasy_id=challengee_fantasy_id,
                 amount=self.amount,
                 expiration_date=self.expiration,
                 week=self.week,
@@ -140,7 +144,7 @@ class SlapChallenge(commands.Cog):
             
             # create vault contract
             try:
-                await self.create_vault_contract(self.challenger, self.challenger, self.amount, self.expiration)
+                await self.create_vault_contract()
             except Exception as e:
                 embed = discord.Embed(title='Slap', 
                     description = 'Failed to create contract for challenge.',
@@ -149,12 +153,13 @@ class SlapChallenge(commands.Cog):
                 logger.error(f'[SlapChallenge][AcceptDenyChallenge] - {e}')
                 return
 
+            self.outer.bot.state.new_slap = True
             desc = f'{utility.id_to_mention(self.challengee)} has accepted {utility.id_to_mention(self.challenger)}\'s challenge. \nWager Amount = {self.amount}'
             embed = discord.Embed(title='Slap', description = desc, color = self.emb_color)
             embed.set_image(url = self._challenge_accept_link)
             await interaction.response.edit_message(embed = embed, view=self)
 
-            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has accepted {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge. \nWager Amount = {self.amount}'
+            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has accepted {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge. Wager Amount = {self.amount} Week:{self.week}'
             logger.info(message)
             wager_logger.info(message)
 
@@ -177,7 +182,7 @@ class SlapChallenge(commands.Cog):
 
             await self.assign_role(member,self.denier_role_name,channel)
             await interaction.response.edit_message(embed = embed, view=self)
-            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has denied {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge.'
+            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has denied {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge. \nWeek:{self.week}'
             logger.info(message)
             wager_logger.info(message)
             
@@ -228,17 +233,29 @@ class SlapChallenge(commands.Cog):
             await interaction.followup.send(embed = embed,ephemeral=False)
             return
 
+        gameday = end_date - timedelta(days=1)
+        if today_date != gameday.date():
+            logger.info(f'[SlapChallenge][slap] - {interaction.user.id} is placing wager, on {today_date}. Gameday: {gameday}')
+            wager_logger.info(f'{interaction.user.id} is placing wager')
+        else:
+            logger.info(f'[MaintainVault][wager] - {interaction.user.id} failed to place wager, this weeks Gameday: {gameday}')
+            embed = discord.Embed(title='No Slaps on Sunday.', description = f'Challenges start {start_datetime.date() + timedelta(days=1)}.\n Challenges end {gameday.date()}.',color = self.emb_color)
+            embed.set_image(url = self._timeout_link)
+            await interaction.followup.send(embed = embed,ephemeral=False)
+            return
+
         # create a challenge with buttons for accept and deny
         challengee_discord_id = discord_user.id
         challenger_discord_id = interaction.user.id
 
-        description_text = f'{utility.id_to_mention(challenger_discord_id)} challenged {utility.id_to_mention(challengee_discord_id)} to a duel.'
+        description_text = f'{utility.id_to_mention(challenger_discord_id)} challenged {utility.id_to_mention(challengee_discord_id)} to a duel. Wager Amount = {amount}'
         embed = discord.Embed(title = 'Slap', description = description_text,color = self.emb_color)
         embed.set_image(url = self._challenge_send_link)
 
         # create view and store it for the future
         view = self.AcceptDenyChallenge(
-            self._challenge_filename,
+            outer = self,
+            challenges_filename=self._challenge_filename,
             challenger=challenger_discord_id,
             challengee=challengee_discord_id,
             amount=amount, 

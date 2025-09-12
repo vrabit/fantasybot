@@ -473,7 +473,6 @@ class Vault():
         async def refund(self):
             number_of_predictions = len(self.predictions)
             amount_per = math.ceil(self.amount / number_of_predictions)
-            print(amount_per)
             for prediction in self.predictions:
                 prediction.gambler.money += amount_per
 
@@ -689,7 +688,7 @@ class Vault():
 
     @overload
     @classmethod
-    async def create_contract(cls, challenger_fantasy_id:str, challengee_fantasy_id:str, amount:int, bonus:int, expiration_date:datetime, week:int, contract_type:str): ...
+    async def create_contract(cls, challenger_fantasy_id:str, challengee_fantasy_id:str, amount:int, expiration_date:datetime, week:int, contract_type:str): ...
 
 
     @overload
@@ -710,7 +709,8 @@ class Vault():
             if not await cls.wager_exists(contract=contract):
                 cls.contracts.get(Vault.GroupWagerContract.__name__).append(contract)
         else:
-            return None
+            raise ValueError('Incorrect usage of overloaded definition.')
+            #return None
         return contract
 
     ###################################################################
@@ -744,8 +744,9 @@ class Vault():
 
     @classmethod
     async def bank_account_by_discord_id(cls, discord_id) -> Vault.BankAccount:
+        string_discord_id = str(discord_id)
         for key, value in cls.accounts.items():
-            if value.discord_id == discord_id:
+            if value.discord_id == string_discord_id:
                 return value
         return None
 

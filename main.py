@@ -235,6 +235,7 @@ class BotState:
 
         # shared vault 
         self.vault:Vault = None
+        self.new_slap = False
 
         # persistent_manager filenames
         self.player_ids_filename = 'player_ids.csv'

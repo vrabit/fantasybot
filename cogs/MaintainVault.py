@@ -376,7 +376,7 @@ class MaintainVault(commands.Cog):
                 return
             await self.outer.store_all()
 
-            message = f"{interaction.user.mention} successfully placed {self.outer._default_wager_amount} tokens on {self.prediction_account.discord_tag}."
+            message = f"{interaction.user.mention} successfully placed {self.outer._default_wager_amount} tokens on {self.prediction_account.discord_tag}. Week:{self.wager.week}"
             logger.info(message)
             wager_logger.info(message)
             await interaction.response.send_message(message)
@@ -515,7 +515,25 @@ class MaintainVault(commands.Cog):
         if not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.wagers_enabled:
             message = f"Either Wagers or Vault Disabled. \n {self.bot.state.bot_features}"
             logger.warning(f'[MaintainVault] - {message}')
-            await interaction.followup.send(message)
+            await interaction.response.send_message(message)
+            return
+        
+        async with self.bot.state.league_lock:
+            fantasy_league = self.bot.state.league
+
+        current_week = fantasy_league.current_week
+        start_datetime, end_date = await FantasyHelper.get_current_week_dates(self.bot, current_week, self._week_dates_filename)
+        today_date = date.today()
+
+        gameday = end_date - timedelta(days=1)
+        if today_date != gameday.date():
+            logger.info(f'[MaintainVault][wager] - {interaction.user.id} is placing wager, on {today_date}. Gameday: {gameday}')
+            wager_logger.info(f'{interaction.user.id} is placing wager')
+        else:
+            logger.info(f'[MaintainVault][wager] - {interaction.user.id} failed to place wager, this weeks Gameday: {gameday}')
+            embed = discord.Embed(title='No Slaps on Sunday.', description = f'Challenges start {start_datetime.date() + timedelta(days=1)}.\n Challenges end {gameday.date()}.',color = self.emb_color)
+            embed.set_image(url = self._timeout_link)
+            await interaction.response.send_message(embed = embed,ephemeral=False)
             return
 
         if not await Vault.ready_to_execute(contract_type=Vault.GroupWagerContract.__name__):
@@ -776,6 +794,22 @@ class MaintainVault(commands.Cog):
 
 
     ###################################################
+    # Update for new slaps     
+    ###################################################
+
+    @tasks.loop(seconds=2)
+    async def update_file_for_new_slap(self):
+        if self.bot.state.new_slap:
+            await self.store_all()
+            self.bot.state.new_slap = False
+
+
+    @update_file_for_new_slap.error
+    async def update_file_for_new_slap_error(self,error):
+        logger.error(f'[MaintainVault][update_file_for_new_slap] - Unable to store new slaps Error: {error}')
+
+
+    ###################################################
     # Error Handling         
     ###################################################
 
@@ -984,6 +1018,7 @@ class MaintainVault(commands.Cog):
 
         self.week_start_check.start()
         self.update_wagers.start()
+        self.update_file_for_new_slap.start()
         ## temporary for testing ##
         #await self.create_and_store_contract()
 
