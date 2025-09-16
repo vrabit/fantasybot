@@ -199,7 +199,7 @@ class MaintainVault(commands.Cog):
 
 
     async def display_slap_results(self, contract:Vault.SlapContract, winner_fantasy_id:str, challenger_points:float, challengee_points:float):
-        if contract.challenger == winner_fantasy_id:
+        if contract.challenger.fantasy_id == winner_fantasy_id:
             description = f"{contract.challenger.discord_tag} 🏆 defeats {contract.challengee.discord_tag}\nWinner takes {contract.winnings} tokens."
             image = self.challenger_wins_link
         else:
@@ -274,16 +274,22 @@ class MaintainVault(commands.Cog):
 
 
     async def execute_slap(self, contract:Vault.SlapContract, week_dict:dict[str:Any]):
-        challenger_id = str(contract.challenger.fantasy_id)
-        challengee_id = str(contract.challengee.fantasy_id)
 
-        challenger_dict = week_dict.get(challenger_id)
-        challengee_dict = week_dict.get(challengee_id)
+        try:
+            challenger_id = str(contract.challenger.fantasy_id)
+            challengee_id = str(contract.challengee.fantasy_id)
 
+            challenger_dict = week_dict.get(challenger_id)
+            challengee_dict = week_dict.get(challengee_id)
+        except Exception as e:
+            raise ValueError(f'[execute_slap] - Invalid challenger_id or challengee_id. Week: {contract.week}')
+
+
+        logger.info(f'Executing Slap between {challenger_id} and {challengee_id}')
         if challenger_dict.get('total_points') > challengee_dict.get('total_points'):
             await contract.execute_contract(contract.challenger)
             await self.assign_role(int(contract.challengee.discord_id), self.loser_role_name, self.gold_color)
-            await self.display_slap_results(contract, challenger_id)
+            await self.display_slap_results(contract, challenger_id, challenger_dict.get('total_points'), challengee_dict.get('total_points'))
 
             message = f'{contract.challenger.discord_tag}:{contract.challenger.discord_id} wins. {contract.challengee.discord_tag}:{contract.challengee.discord_id} assigned loser tag: {self.loser_role_name} for the week.'
         elif challenger_dict.get('total_points') < challengee_dict.get('total_points'):
@@ -305,6 +311,7 @@ class MaintainVault(commands.Cog):
             Vault.GroupWagerContract.__name__ : self.execute_wager,
         }
 
+        logger.info(f'[MaintainVault][execute_by_contract_type] - Executing {contract_type}.')
         prev_week = None
         while await self._vault.ready_to_execute(contract_type=contract_type):
             contract = await self._vault.get_next_contract(contract_type=contract_type)

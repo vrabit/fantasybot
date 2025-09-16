@@ -90,7 +90,7 @@ class Vault():
 
         @property
         def winnings(self):
-            raise NotImplementedError
+            raise NotImplementedError('Base Contract Not Meant to be used.')
 
 
         @property
@@ -100,11 +100,11 @@ class Vault():
 
         @classmethod
         async def contract_from_serialized(cls, serialized_contract):
-            raise NotImplementedError
+            raise NotImplementedError('Base Contract Not Meant to be used.')
 
 
         async def serialize(self):
-            raise NotImplementedError
+            raise NotImplementedError('Base Contract Not Meant to be used.')
 
 
         async def should_execute(self):
@@ -112,7 +112,7 @@ class Vault():
 
 
         async def execute_contract(self):
-            raise NotImplementedError
+            raise NotImplementedError('Base Contract Not Meant to be used.')
 
 
     ###################################################################
@@ -544,7 +544,7 @@ class Vault():
 
         def __eq__(self, other):
             if not isinstance(other, Vault.BankAccount):
-                raise NotImplementedError
+                raise NotImplementedError(f'Equal comparison Error: Expected a {Vault.BankAccount.__name__}')
             return self.fantasy_id == other.fantasy_id
 
 

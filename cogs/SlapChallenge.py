@@ -224,7 +224,7 @@ class SlapChallenge(commands.Cog):
         # cant challenge someone on first day of the week
         current_week = fantasy_league.current_week
         start_datetime, end_date = await FantasyHelper.get_current_week_dates(self.bot, current_week, self._week_dates_filename)
-        expiration_date = end_date + timedelta(days = 1)
+        expiration_date = end_date
         today_date = date.today()
 
         if today_date == start_datetime.date():
