@@ -182,7 +182,7 @@ class SlapChallenge(commands.Cog):
 
             await self.assign_role(member,self.denier_role_name,channel)
             await interaction.response.edit_message(embed = embed, view=self)
-            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has denied {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge. \nWeek:{self.week}'
+            message = f'{utility.id_to_mention(self.challengee)}:{self.challengee} has denied {utility.id_to_mention(self.challenger)}:{self.challenger}\'s challenge. Week:{self.week}'
             logger.info(message)
             wager_logger.info(message)
             
