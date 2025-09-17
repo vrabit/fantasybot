@@ -517,7 +517,7 @@ class MaintainVault(commands.Cog):
         return select
 
 
-    @app_commands.command(name='wager', description="Place a wager on one of this week's matchups.")
+    @app_commands.command(name='wager', description="Place a 10 token wager on one of this week's matchups.")
     async def wager(self, interaction:discord.Interaction):
         if not self.bot.state.bot_features.vault_enabled and not self.bot.state.bot_features.wagers_enabled:
             message = f"Either Wagers or Vault Disabled. \n {self.bot.state.bot_features}"
@@ -553,8 +553,8 @@ class MaintainVault(commands.Cog):
         await interaction.response.send_message("Select Matchup to Wager on.", view=view, ephemeral=True)
 
 
-    @app_commands.command(name='wager_leaderboard', description="Token Leaderboard.")
-    async def wager_leaderboard(self, interaction:discord.Interaction):
+    @app_commands.command(name='token_leaderboard', description="Token Leaderboard.")
+    async def token_leaderboard(self, interaction:discord.Interaction):
         await interaction.response.defer(ephemeral=True)
         if not self.bot.state.bot_features.vault_enabled:
             logger.warning('[MaintainVault] - enable_vault to use wager_leaderboard.')
@@ -562,13 +562,12 @@ class MaintainVault(commands.Cog):
             return
         
         today = datetime.today()
-        embed = discord.Embed(title='Wager Leaderboard', description='Current token standings.', color=self.emb_color, timestamp=today)
+        embed = discord.Embed(title='Token Leaderboard', description='Current token standings.', color=self.emb_color, timestamp=today)
 
         accounts = await self._vault_manager.load_json(filename=self._vault_accounts_filename)
         sorted_accounts = sorted(accounts, key=lambda x:int(x.get('money')), reverse=True)
 
         for account in sorted_accounts:
-
             value = utility.to_block(f'Tokens: {account.get('money')}\nFantasy ID: {account.get('fantasy_id')}') + f'{account.get('discord_tag')}'
             embed.add_field(name=account.get('name'), value=value, inline=False)
 
