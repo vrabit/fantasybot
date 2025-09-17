@@ -17,6 +17,8 @@ from io import BytesIO
 import imageio
 import matplotlib.gridspec as gridspec
 
+from cogs_helpers import FantasyHelper
+
 from datetime import datetime, timedelta
 import utility
 
@@ -301,7 +303,7 @@ class TradeValue(commands.Cog):
         # Get all unique owners, weeks, and positions for normalization/completeness
         all_owner_ids:list = sorted(df_agg['owner_id'].unique())
         all_weeks:list = sorted(df_agg['week'].unique())
-        all_positions:list = ['QB', 'RB', 'WR', 'TE', 'K'] # Define Primary positions in specific order
+        all_positions:list = ['QB', 'RB', 'WR', 'TE'] # Define Primary positions in specific order
 
         # Prepare Left Side (Index)
         full_index = pd.MultiIndex.from_product(
@@ -826,6 +828,9 @@ class TradeValue(commands.Cog):
             await interaction.followup.send('This command will be available after week 1 is concluded.')
             return 
         
+        if not await FantasyHelper.season_over(league):
+            current_week = current_week - 1
+
         df_roster = await self.bot.state.recap_manager.load_csv_formatted(self._roster_csv)
 
         df_plot_ready, df_cleaned_full, _, all_positions = await self.radar_DataFrame(df_roster)

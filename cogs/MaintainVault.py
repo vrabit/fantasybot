@@ -623,7 +623,9 @@ class MaintainVault(commands.Cog):
         else:
             await self._vault.add_money(fantasy_id=fantasy_id, amount = amount)
             balance_info = await self._vault.bank_account_info_by_discord_id(str(discord_user.id))
+            await self.store_all()
             await interaction.followup.send(f'```{balance_info}```')
+            wager_logger.info(f'MOD Manually added {amount} to {discord.Interaction.user.id}:{fantasy_id}. New Balance: {balance_info}')
 
 
     @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
@@ -641,7 +643,9 @@ class MaintainVault(commands.Cog):
         else:
             await self._vault.deduct_money(fantasy_id=fantasy_id, amount = amount)
             balance_info = await self._vault.bank_account_info_by_discord_id(str(discord_user.id))
+            await self.store_all()
             await interaction.followup.send(f'```{balance_info}```')
+            wager_logger.info(f'MOD Manually deducted {amount} to {discord.Interaction.user.id}:{fantasy_id}. New Balance: {balance_info}')
 
 
     @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))
@@ -661,7 +665,8 @@ class MaintainVault(commands.Cog):
             await self._vault.transfer_money(to_fantasy_id=fantasy_id_to, from_fantasy_id=fantasy_id_from, amount = amount)
             balance_info_to = await self._vault.bank_account_info_by_discord_id(str(discord_user_to.id))
             balance_info_from = await self._vault.bank_account_info_by_discord_id(str(discord_user_from.id))
-            await self._vault_manager.write_pickle(filename=self._vault_pickle_filename, data=self._vault)
+            await self.store_all()
+
             await interaction.followup.send(f'```{balance_info_to}```\n```{balance_info_from}```')
 
 
