@@ -66,8 +66,8 @@ class fantasyQuery:
     def get_player_stats(self, player_id):
         game_id = self.yahoo_query.game_id
         player_key = utility.compose_player_key(game_id,player_id)
-        temp = self.yahoo_query.get_player_stats_for_season(player_key)
-        return temp
+        season_stats = self.yahoo_query.get_player_stats_for_season(player_key)
+        return season_stats
 
 
     def get_league(self):
@@ -129,13 +129,14 @@ class fantasyQuery:
     def team_stats(self,player_id,week):
         game_id = self.yahoo_query.game_id
         player_key = utility.compose_player_key(game_id,player_id)
-        temp = self.yahoo_query.get_player_stats_by_week(player_key, week)
-        return temp
+        team_stats = self.yahoo_query.get_player_stats_by_week(player_key, week)
+        return team_stats
 
 
     def get_stat_categories(self):
         game_id = self.yahoo_query.game_id
-        return self.yahoo_query.get_game_stat_categories_by_game_id(game_id)
+        stat_categories = self.yahoo_query.get_game_stat_categories_by_game_id(game_id)
+        return stat_categories
 
 
     def get_game_weeks_by_game_id(self):
@@ -143,7 +144,8 @@ class fantasyQuery:
 
 
     def get_team_stats(self, week, team_id):
-        return self.yahoo_query.get_team_stats_by_week(team_id, week)
+        team_stats = self.yahoo_query.get_team_stats_by_week(team_id, week)
+        return team_stats
 
 
     #doesnt quite work

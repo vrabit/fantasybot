@@ -497,14 +497,12 @@ class FantasyQuery(commands.Cog):
 
         name, player_id = await FantasyQueryHelper.find_closest_name(player_name, self.bot.state.persistent_manager, self.player_ids_filename)
         if player_id is None:
-            await interaction.followup.send("Doesn't exist or you need to spell better.")
+            await interaction.followup.send("This Player either doesn't exist or you need to spell better.")
             return
-
 
         async with self.bot.state.fantasy_query_lock:
             # weekly stats
             player = self.bot.state.fantasy_query.get_player_stats(player_id)
-            team_stats = self.bot.state.fantasy_query.team_stats(player_id,week)
 
         # create embed
         embed = discord.Embed(title = f'{name}', url=player.url, description = f'#{player.uniform_number}, {player.display_position}, {player.editorial_team_full_name}', color = self.emb_color)
@@ -512,7 +510,6 @@ class FantasyQuery(commands.Cog):
 
         if player.has_player_notes:
             embed.add_field(name = 'Status',value =utility.to_red_text(f'{player.status_full} {player.injury_note}'),inline=True)
-        embed.add_field(name = 'Points', value = utility.to_block(team_stats.player_points.total), inline=True)
 
         # season points
         async with self.bot.state.fantasy_query_lock:
@@ -531,10 +528,10 @@ class FantasyQuery(commands.Cog):
             embed.set_footer(text = 'Manager: ' + ownership_result.players[0].ownership.teams[0].name.decode('utf-8'))
         
         # List Stats
-        stats_list = team_stats.player_stats.stats
-        for i in range(len(stats_list)):
+        stats_player = player.player_stats.stats
+        for i in range(len(stats_player)):
             async with self.bot.state.fantasy_query_lock:
-                embed.add_field(name = self.bot.state.fantasy_query.stat_dict.get(str(stats_list[i].stat_id)), value = utility.to_block(f'{stats_list[i].value:3.1f}'), inline = True)
+                embed.add_field(name = self.bot.state.fantasy_query.stat_dict.get(str(stats_player[i].stat_id)), value = utility.to_block(f'{stats_player[i].value:3.1f}'), inline = True)
 
         await interaction.followup.send(embed=embed,ephemeral=False)
 
