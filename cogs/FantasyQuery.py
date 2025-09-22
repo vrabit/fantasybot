@@ -1132,9 +1132,12 @@ class FantasyQuery(commands.Cog):
     async def log_season(self,fantasy_league_info):
         _, end_date = await FantasyHelper.get_current_week_dates(self.bot, fantasy_league_info.current_week, self._week_dates_filename)
 
+        day_after_end = end_date + datetime.timedelta(days=1)
+
         today_date = datetime.date.today()
-        if today_date < end_date.date():    # middle of the week, dont include
+        if today_date < day_after_end.date():    # middle of the week, dont include
             end_week = fantasy_league_info.current_week
+            logger.info(f'[log_season] - Current Week Not Concluded. Dont include week: {end_week}')
         else:                               # end of the season
             end_week = fantasy_league_info.current_week + 1
 
