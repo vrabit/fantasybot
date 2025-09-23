@@ -1092,7 +1092,12 @@ class FantasyQuery(commands.Cog):
     async def construct_standings_DataFrame(self):
         async with self.bot.state.league_lock:
             league = self.bot.state.league
-        current_week = league.current_week
+
+        if await FantasyHelper.season_over(league):
+            current_week = league.current_week
+        else:
+            current_week = league.current_week - 1
+
         filename = self._matchup_standings_template.format(week = current_week)
 
         if await self.bot.state.recap_manager.path_exists(filename):
