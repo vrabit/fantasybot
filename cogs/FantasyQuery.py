@@ -1530,13 +1530,26 @@ class FantasyQuery(commands.Cog):
         await interaction.response.defer()
         async with self.bot.state.league_lock:
             league = self.bot.state.league
-        current_week = league.current_week
-
+        
         embed_list = []
+
+        if league.current_week < 2:
+            await interaction.followup.send('Try again after Week 1.')
+            return
+
+        if await FantasyHelper.season_over(league):
+            current_week = league.current_week
+        else:
+            current_week = league.current_week - 1
 
         # Generate podium embed
         podium_filename=self._matchup_standings_template.format(week=current_week)
-        df_podium = await self.bot.state.recap_manager.load_csv_formatted(podium_filename)
+        try:
+            df_podium = await self.bot.state.recap_manager.load_csv_formatted(podium_filename)
+        except Exception as e:
+            await interaction.followup.send('Error: Loading recap file.')
+            logger.error(f'[FantasyQuery][season_recap] - Error: {e}.')
+            return
         podium_buff = await self.plot_images_podium(df_podium)
 
         podium_filename = 'podium.png'
