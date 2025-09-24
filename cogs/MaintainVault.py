@@ -799,11 +799,10 @@ class MaintainVault(commands.Cog):
             logger.info('Week 1 has not concluded.')
             return
 
-        last_week = current_week - 1
-        _, end_date = await FantasyHelper.get_current_week_dates(self.bot, last_week, self._week_dates_filename)
+        start_date, end_date = await FantasyHelper.get_current_week_dates(self.bot, current_week, self._week_dates_filename)
         
-        if date.today() >= end_date.date():
-            logger.info("[MaintainVault][end_week_tasks] - End of Week: Removing week's assigned roles.")
+        if date.today() == start_date.date():
+            logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week - 1} has been concluded. Removing Week {current_week}'s assigned roles.")
             await self.remove_challenge_roles()
         else:
             logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week}'s end date: {end_date}, Current date: {date.today()}")
