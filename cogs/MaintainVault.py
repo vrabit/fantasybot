@@ -795,9 +795,14 @@ class MaintainVault(commands.Cog):
             fantasy_league = self.bot.state.league
         current_week:int = fantasy_league.current_week
 
-        _, end_date = await FantasyHelper.get_current_week_dates(self.bot, current_week, self._week_dates_filename)
+        if current_week <= 1:
+            logger.info('Week 1 has not concluded.')
+            return
+
+        last_week = current_week - 1
+        _, end_date = await FantasyHelper.get_current_week_dates(self.bot, last_week, self._week_dates_filename)
         
-        if date.today() == end_date.date():
+        if date.today() >= end_date.date():
             logger.info("[MaintainVault][end_week_tasks] - End of Week: Removing week's assigned roles.")
             await self.remove_challenge_roles()
         else:
@@ -1030,6 +1035,7 @@ class MaintainVault(commands.Cog):
         self.week_start_check.start()
         self.update_wagers.start()
         self.update_file_for_new_slap.start()
+        self.end_week_tasks.start()
         ## temporary for testing ##
         #await self.create_and_store_contract()
 

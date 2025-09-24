@@ -850,7 +850,7 @@ class TradeValue(commands.Cog):
     # Update values every 24 hours      
     ###################################################
 
-    @tasks.loop(minutes=1440)
+    @tasks.loop(minutes=360)
     async def trade_value(self):
         current_date = datetime.today() 
         if self.date is None or self.date != current_date:

@@ -110,12 +110,14 @@ async def get_member_by_id(guild:discord.Guild, user_id:int):
 
 async def remove_role_members_by_guild(guild:discord.Guild, role_name:str):
     role = discord.utils.get(guild.roles, name = role_name)
+    logger.info(f'[FantasyHelper][remove_role_members_by_guild] - Removing {role_name} role from members.')
     if role is None:
         logger.warning('[FantasyHelper][remove_role_members] - Role doesn\'t exist.')
         return
-
-    if role is not None:
-        for member in role.members:
+    
+    async for member in guild.fetch_members():
+        if role in member.roles:
+            logger.info(f'[FantasyHelper][remove_role_members_by_guild] - Removing {role_name} from {member.id}')
             await member.remove_roles(role)
 
 
