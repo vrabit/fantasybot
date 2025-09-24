@@ -804,6 +804,9 @@ class MaintainVault(commands.Cog):
         if date.today() == start_date.date():
             logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week - 1} has been concluded. Removing Week {current_week}'s assigned roles.")
             await self.remove_challenge_roles()
+        elif await FantasyHelper.season_over(fantasy_league):
+            logger.info(f"[MaintainVault][end_week_tasks] - Season has been concluded. Removing all roles.")
+            await self.remove_challenge_roles()
         else:
             logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week}'s end date: {end_date}, Current date: {date.today()}")
 
