@@ -927,10 +927,11 @@ class FantasyQuery(commands.Cog):
         await self.bot.state.recap_manager.write_json(filename=filename, data = serialized_data)
 
 
-    async def store_roster(self, week:int):
+    async def store_roster(self, week:int, current_week:int):
         filename = self.roster_json_template.format(week=week)
-        
-        if await self.bot.state.recap_manager.path_exists(filename):
+
+        # only update the most current week's values
+        if await self.bot.state.recap_manager.path_exists(filename) and week != current_week - 1:
             return
         
         async with self.bot.state.league_lock:
@@ -975,6 +976,7 @@ class FantasyQuery(commands.Cog):
         df_player_stats[stats_columns] = df_player_stats[stats_columns].apply(pd.to_numeric, errors='coerce')
         df_player_stats[stats_columns] = df_player_stats[stats_columns][stats_columns].fillna(-1).astype(int)
         
+        logger.info(f'[FantasyQuery][construct_roster_dataframe] - Writing {self._roster_csv}.')
         await self.bot.state.recap_manager.write_csv_formatted(self._roster_csv, df_player_stats)
 
 
@@ -1149,7 +1151,7 @@ class FantasyQuery(commands.Cog):
         logger.info("[log_season] - Season log started.")
         for i in range(fantasy_league_info.start_week, end_week):
             await self.store_scoreboard(i)
-            await self.store_roster(i)
+            await self.store_roster(i, int(fantasy_league_info.current_week))
 
         # Store Data CSV for Graphs
         await self.construct_matchups_DataFrame(fantasy_league_info.start_week, end_week)
