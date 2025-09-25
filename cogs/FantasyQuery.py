@@ -927,13 +927,15 @@ class FantasyQuery(commands.Cog):
         await self.bot.state.recap_manager.write_json(filename=filename, data = serialized_data)
 
 
-    async def store_roster(self, week:int, current_week:int):
+    async def store_roster(self, week:int):
         filename = self.roster_json_template.format(week=week)
 
         # only update the most current week's values
-        if await self.bot.state.recap_manager.path_exists(filename) and week != current_week - 1:
+        if await self.bot.state.recap_manager.path_exists(filename):
+            logger.info(f'[FantasyQuery][store_roster] - Skipping {filename}. Already Exists.')
             return
         
+        logger.info(f'[FantasyQuery][store_roster] - Constructing {filename}')
         async with self.bot.state.league_lock:
             fantasy_league = self.bot.state.league
         number_of_teams = int(fantasy_league.num_teams)
@@ -961,8 +963,10 @@ class FantasyQuery(commands.Cog):
 
     async def construct_roster_DataFrame(self, start_week:int, end_week:int):
         data = []
+        # Include current Week
         for i in range(start_week,end_week + 1):
             filename = self.roster_json_template.format(week=i)
+            logger.info(f'[FantasyQuery][construct_roster_dataframe] - Loading {filename}')
             loaded_data = await self.bot.state.recap_manager.load_json(filename)
             data += loaded_data
         
@@ -1142,16 +1146,16 @@ class FantasyQuery(commands.Cog):
         day_after_end = end_date + datetime.timedelta(days=1)
 
         today_date = datetime.date.today()
-        if today_date < day_after_end.date():    # middle of the week, dont include
+        if today_date < day_after_end.date():       # middle of the week, dont include
             end_week = fantasy_league_info.current_week
-            logger.info(f'[log_season] - Current Week Not Concluded. Dont include week: {end_week}')
-        else:                               # end of the season
+            logger.info(f'[FantasyQuery][log_season] - Current Week Not Concluded. Dont include week: {end_week}')
+        else:                                       # end of the season
             end_week = fantasy_league_info.current_week + 1
+            logger.info('[FantasyQuery][log_season] - Season Concluded. Logging all.')
 
-        logger.info("[log_season] - Season log started.")
+        logger.info("[FantasyQuery][log_season] - Season log started.")
         for i in range(fantasy_league_info.start_week, end_week):
             await self.store_scoreboard(i)
-            await self.store_roster(i, int(fantasy_league_info.current_week))
 
         # Store Data CSV for Graphs
         await self.construct_matchups_DataFrame(fantasy_league_info.start_week, end_week)
@@ -1160,21 +1164,30 @@ class FantasyQuery(commands.Cog):
         logger.info("[log_season] - Season log completed.")
 
 
-    @tasks.loop(minutes=1440)
+    @tasks.loop(minutes=360)
     async def store_data(self):
         if not self.bot.state.bot_features.log_season_enabled:
             logger.info("[FantasyQuery][store_data] - Season Log disabled.\n To resolve, run the 'enable_log' Command." )
             return
 
-        logger.info('[FantasyQuery][store_data] - Starting!')
         async with self.bot.state.league_lock:
             fantasy_league_info = self.bot.state.league
 
+        if not await FantasyHelper.season_started(fantasy_league_info):
+            logger.warning("[FantasyQuery][store_data] - Season has not Started")
+
+        # Log all team rosters
+        logger.info('[FantasyQuery][store_data] - Updating rosters.')
+        for i in range(fantasy_league_info.start_week, fantasy_league_info.current_week + 1):
+            await self.store_roster(i)
+
+        
         current_week = fantasy_league_info.current_week
         if current_week <= 1:
-            logger.info('[FantasyQuery][store_data] - Week 1 not concluded.')
+            logger.info('[FantasyQuery][store_data] - Week 1 not concluded. Season Log Starts after week 1')
             return
 
+        logger.info('[FantasyQuery][store_data] - Season Log Starting!')
         await self.log_season(fantasy_league_info)
 
 

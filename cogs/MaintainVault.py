@@ -808,7 +808,8 @@ class MaintainVault(commands.Cog):
             logger.info(f"[MaintainVault][end_week_tasks] - Season has been concluded. Removing all roles.")
             await self.remove_challenge_roles()
         else:
-            logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week}'s end date: {end_date}, Current date: {date.today()}")
+            logger.info(f"[MaintainVault][end_week_tasks] - Week {current_week}'s end date: {end_date}")
+            logger.info(f"[MaintainVault][end_week_tasks] - Current date: {date.today()}")
 
 
     ###################################################

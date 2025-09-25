@@ -375,7 +375,7 @@ class TradeValue(commands.Cog):
         # Hold all buffers in a list to later convert to GIF
         image_buffer_list = []
 
-        logger.info("\nStarting radar chart generation...")
+        logger.info("Starting radar chart generation...")
         for week in all_weeks:
             data_for_week_radar:pd.Series = df_plot_ready_filtered[df_plot_ready_filtered['week'] == week].copy()
             # Filter df_cleaned_full for the current week for individual player data
@@ -393,7 +393,7 @@ class TradeValue(commands.Cog):
         df_plot_ready_filtered, owners_to_plot_in_this_session = await self.filtered_DataFrame(df_plot_ready, selected_owner_ids)
 
 
-        logger.info("\nStarting radar chart generation...")
+        logger.info("Starting radar chart generation...")
 
         data_for_week_radar:pd.Series = df_plot_ready_filtered[df_plot_ready_filtered['week'] == current_week].copy()
         # Filter df_cleaned_full for the current week for individual player data
@@ -780,10 +780,11 @@ class TradeValue(commands.Cog):
         await interaction.response.defer()
 
         async with self.bot.state.league_lock:
-            current_week = self.bot.state.league.current_week
+            league = self.bot.state.league
 
-        if current_week == 1:
-            await interaction.followup.send('This command will be available after week 1 is concluded.')
+        if not await FantasyHelper.season_started(league):
+            await interaction.followup.send('Season has not started. Try again later.')
+            logger.warning('[TradeValue][season_team_value_comparison] - Attempt failed. Season has not begun.')
             return
 
         user_team_id:str = await utility.discord_to_teamid(interaction.user.id, self.bot.state.persistent_manager)
@@ -824,13 +825,11 @@ class TradeValue(commands.Cog):
             league = self.bot.state.league
         current_week = league.current_week
 
-        if current_week == 1:
-            await interaction.followup.send('This command will be available after week 1 is concluded.')
-            return 
+        if not await FantasyHelper.season_started(league):
+            await interaction.followup.send('Season has not started. Try again later.')
+            logger.warning('[TradeValue][season_team_value_comparison] - Attempt failed. Season has not begun.')
+            return
         
-        if not await FantasyHelper.season_over(league):
-            current_week = current_week - 1
-
         df_roster = await self.bot.state.recap_manager.load_csv_formatted(self._roster_csv)
 
         df_plot_ready, df_cleaned_full, _, all_positions = await self.radar_DataFrame(df_roster)
