@@ -1390,7 +1390,7 @@ class FantasyQuery(commands.Cog):
             )
 
         buf = BytesIO()
-        fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+        fig.savefig(buf, format='png', dpi=300)
         buf.seek(0)
         return buf
 
@@ -1565,7 +1565,13 @@ class FantasyQuery(commands.Cog):
             await interaction.followup.send('Error: Loading recap file.')
             logger.error(f'[FantasyQuery][season_recap] - Error: {e}.')
             return
-        podium_buff = await self.plot_images_podium(df_podium)
+        
+        try:
+            podium_buff = await self.plot_images_podium(df_podium)
+        except Exception as e:
+            await interaction.followup.send('Error: Unable to create podium graph.')
+            logger.error(f'[FantasyQuery][plot_images_podium] - Error: {e}.')
+            return
 
         podium_filename = 'podium.png'
         podium_file = discord.File(podium_buff, filename=podium_filename)
@@ -1577,7 +1583,13 @@ class FantasyQuery(commands.Cog):
         # Generate rankings visualization for non-playoff weeks
         df_raw = await self.bot.state.recap_manager.load_csv_formatted(self._matchup_csv)
         df_matchups_raw = df_raw.copy()
-        bump_buff = await self.plot_rank_bumpchart(df_matchups_raw)
+
+        try:
+            bump_buff = await self.plot_rank_bumpchart(df_matchups_raw)
+        except Exception as e:
+            await interaction.followup.send('Error: Unable to create rank bumpchart.')
+            logger.error(f'[FantasyQuery][plot_rank_bumpchart] - Error: {e}.')
+            return
 
         bump_filename = 'season_bump_chart.png'
         bump_file = discord.File(bump_buff, filename=bump_filename)
@@ -1588,10 +1600,24 @@ class FantasyQuery(commands.Cog):
 
         # Generate cumulative points chart
         df = df_raw.copy()
-        buffer_list:list[BytesIO] = await self.generate_cumulative_frames(df)
+
+        try:
+            buffer_list:list[BytesIO] = await self.generate_cumulative_frames(df)
+        except Exception as e:
+            await interaction.followup.send('Error: Unable to create total points frame list.')
+            logger.error(f'[FantasyQuery][generate_cumulative_frames] - Error: {e}.')
+            return
+
         if buffer_list:
             cumul_filename = 'cumulative_points.gif'
-            gif_buffer = await self.convert_buffers_list_to_gif_buffer(buffer_list)
+
+            try:
+                gif_buffer = await self.convert_buffers_list_to_gif_buffer(buffer_list)
+            except Exception as e:
+                await interaction.followup.send('Error: Unable to create total points Gif.')
+                logger.error(f'[FantasyQuery][convert_buffers_list_to_gif_buffer] - Error: {e}.')
+                return
+
             cumul_file = discord.File(gif_buffer, filename=cumul_filename)
             embed_radial = discord.Embed(title = "Season Recap", description = "Total Cumulative Points Earned", color = self.emb_color)
             embed_radial.set_image(url=f'attachment://{cumul_filename}')
