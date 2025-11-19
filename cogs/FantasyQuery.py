@@ -1195,6 +1195,89 @@ class FantasyQuery(commands.Cog):
     # Season Recap - Rankings Visualization
     ###################################################
 
+    async def plot_rank_bumpchart_from_data(self,df):
+        # Gather all necessary data
+        df_plot = df.copy()
+        print(df_plot)
+
+        # Draw
+        fig, ax = plt.subplots(figsize = (18,10), facecolor="#F0F0F0")
+
+        # Pallette
+        hue_order_for_coloring = sorted(df_plot['team_name'].unique())
+        palette = sns.husl_palette(n_colors=len(hue_order_for_coloring), h=0.01, s=0.9, l=0.4)
+        name_to_color_map = dict(zip(hue_order_for_coloring, palette))
+
+        sns.lineplot(
+            data=df_plot, 
+            x='week',
+            y='rank',
+            hue='team_name', 
+            units='id', 
+            marker='o',         
+            palette=palette,    
+            lw=2,               
+            markersize=8,
+            ax=ax,
+            hue_order=hue_order_for_coloring,
+            legend=False   
+        )
+
+        # rank 1 at top
+        ax.invert_yaxis() # Invert y-axis
+
+        # labels
+        max_rank_display = df_plot['rank'].max()
+        ax.set_facecolor("#DDEEEE")
+        ax.set_yticks(range(1, max_rank_display + 1)) 
+        ax.set_xticks(range(df_plot['week'].min(), df_plot['week'].max() + 1)) 
+        ax.set_title('Regular Season - Team Ranks', fontsize=16) 
+        ax.set_xlabel('Week', fontsize=12) 
+        ax.set_yticklabels([]) 
+        ax.set_ylabel('Rank', fontsize=12) 
+        ax.grid(True, linestyle='--', alpha=0.7) 
+
+        # annotations
+        unique_ids:list = df_plot['id'].unique()
+        id_to_name_map = df_plot[['id', 'team_name']].drop_duplicates(subset=['id'], keep='last').set_index('id')['team_name'].to_dict()
+
+        players_for_annotation = []
+        for player_id in unique_ids:
+            player_name = id_to_name_map.get(player_id)
+            players_for_annotation.append({'id': player_id, 'name': player_name})
+        
+        for player_data in players_for_annotation:
+            player_id = player_data['id']
+            player_name_for_label = player_data['name'] 
+
+            # Determine the color based on the player's name used in the label
+            line_color = name_to_color_map.get(player_name_for_label, 'black') 
+
+            # Annotate start rank
+            start_data = df_plot[(df_plot['id'] == player_id) & (df_plot['week'] == df_plot['week'].min())]
+            if not start_data.empty:
+                ax.text(
+                        start_data['week'].iloc[0] - 0.75, start_data['rank'].iloc[0], player_name_for_label, 
+                        ha='right', va='center', fontsize=12, color=line_color
+                    )
+
+            # Annotate end rank
+            end_data = df_plot[(df_plot['id'] == player_id) & (df_plot['week'] == df_plot['week'].max())]
+            if not end_data.empty:
+                ax.text(
+                        end_data['week'].iloc[0] + 0.75, end_data['rank'].iloc[0], player_name_for_label, 
+                        ha='left', va='center', fontsize=12, color=line_color
+                    )
+
+        fig.tight_layout() 
+        
+        # Save the figure to the globally defined output directory
+        buf = BytesIO()
+        fig.savefig(buf, format='png', dpi=300, bbox_inches='tight')
+        buf.seek(0)
+        return buf
+
+
     async def create_bump_chart_plot(self, df):
         def calculate_rank(group):
             group_sorted = group.sort_values(by=['total_wins', 'points'], ascending = [False, False])
@@ -1540,6 +1623,21 @@ class FantasyQuery(commands.Cog):
         return buf
 
 
+    async def load_matchup_dataframes(self, current_week:int):
+        all_weekly_dfs = []
+
+        for i in range(1,current_week+1):
+            temp_df = await self.bot.state.recap_manager.load_csv_formatted(self._matchup_standings_template.format(week=i))
+            temp_df['week'] = i
+            all_weekly_dfs.append(temp_df)
+           
+        if all_weekly_dfs:
+            cumulative_df = pd.concat(all_weekly_dfs, ignore_index=True, axis=0)
+            return cumulative_df
+        else:
+            return pd.DataFrame()
+
+
     @app_commands.command(name="season_recap",description="Season Recap.")
     async def season_recap(self,interaction:discord.Interaction):
         await interaction.response.defer()
@@ -1568,35 +1666,41 @@ class FantasyQuery(commands.Cog):
         
         try:
             podium_buff = await self.plot_images_podium(df_podium)
+
+            podium_filename = 'podium.png'
+            podium_file = discord.File(podium_buff, filename=podium_filename)
+            podium_embed = discord.Embed(title = "Season Recap", description = "Post Season Rankings", color = self.emb_color)
+            podium_embed.set_image(url=f'attachment://{podium_filename}')
+            embed_list.append((podium_embed, podium_file))
         except Exception as e:
             await interaction.followup.send('Error: Unable to create podium graph.')
             logger.error(f'[FantasyQuery][plot_images_podium] - Error: {e}.')
             return
 
-        podium_filename = 'podium.png'
-        podium_file = discord.File(podium_buff, filename=podium_filename)
-        podium_embed = discord.Embed(title = "Season Recap", description = "Post Season Rankings", color = self.emb_color)
-        podium_embed.set_image(url=f'attachment://{podium_filename}')
-        embed_list.append((podium_embed, podium_file))
+
+        # Rewrite Bumpchart to utilize the stored data
+        try:
+            cumulative_df = await self.load_matchup_dataframes(current_week=current_week)
+        except Exception as e:
+            await interaction.followup.send('Error: Unable to properly load weekly matchup data.')
+            logger.error(f'[FantasyQuery][load_matchup_dataframes] - Error: {e}.')
+
+        try:
+            bumpchart_buffer = await self.plot_rank_bumpchart_from_data(cumulative_df)
+
+            bumpchart_filename = 'season_bump_chart_data.png'
+            bumpchart_file = discord.File(bumpchart_buffer, filename=bumpchart_filename)
+            bumpchart_embed = discord.Embed(title = "Season Recap", description = "Regular Post Rankings", color = self.emb_color)
+            bumpchart_embed.set_image(url=f'attachment://{bumpchart_filename}')
+            embed_list.append((bumpchart_embed, bumpchart_file))
+
+        except Exception as e:
+            await interaction.followup.send('Error: Unable to plot rank bumpchart.')
+            logger.error(f'[FantasyQuery][plot_rank_bumpchart_from_data] - Error: {e}.')
 
 
         # Generate rankings visualization for non-playoff weeks
         df_raw = await self.bot.state.recap_manager.load_csv_formatted(self._matchup_csv)
-        df_matchups_raw = df_raw.copy()
-
-        try:
-            bump_buff = await self.plot_rank_bumpchart(df_matchups_raw)
-        except Exception as e:
-            await interaction.followup.send('Error: Unable to create rank bumpchart.')
-            logger.error(f'[FantasyQuery][plot_rank_bumpchart] - Error: {e}.')
-            return
-
-        bump_filename = 'season_bump_chart.png'
-        bump_file = discord.File(bump_buff, filename=bump_filename)
-        bump_embed = discord.Embed(title = "Season Recap", description = "Regular Post Rankings", color = self.emb_color)
-        bump_embed.set_image(url=f'attachment://{bump_filename}')
-        embed_list.append((bump_embed, bump_file))
-
 
         # Generate cumulative points chart
         df = df_raw.copy()
@@ -1613,16 +1717,16 @@ class FantasyQuery(commands.Cog):
 
             try:
                 gif_buffer = await self.convert_buffers_list_to_gif_buffer(buffer_list)
+
+                cumul_file = discord.File(gif_buffer, filename=cumul_filename)
+                embed_radial = discord.Embed(title = "Season Recap", description = "Total Cumulative Points Earned", color = self.emb_color)
+                embed_radial.set_image(url=f'attachment://{cumul_filename}')
+                embed_list.append((embed_radial, cumul_file))
             except Exception as e:
                 await interaction.followup.send('Error: Unable to create total points Gif.')
                 logger.error(f'[FantasyQuery][convert_buffers_list_to_gif_buffer] - Error: {e}.')
                 return
 
-            cumul_file = discord.File(gif_buffer, filename=cumul_filename)
-            embed_radial = discord.Embed(title = "Season Recap", description = "Total Cumulative Points Earned", color = self.emb_color)
-            embed_radial.set_image(url=f'attachment://{cumul_filename}')
-            embed_list.append((embed_radial, cumul_file))
-            
         else:
             await interaction.followup.send("Failed to generate cumulative radial gif.",ephemeral=False)
 

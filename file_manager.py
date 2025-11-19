@@ -131,7 +131,7 @@ class BaseFileManager:
         async with lock:
             async with thread_lock:
                 try:
-                    data = await asyncio.to_thread(pd.read_csv, path)
+                    data = await asyncio.to_thread(pd.read_csv, path, **{'on_bad_lines': 'skip'})
                     return data
                 except FileNotFoundError:
                     return None
