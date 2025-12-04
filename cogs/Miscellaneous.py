@@ -1,4 +1,5 @@
 import discord
+from discord.utils import get
 from discord import app_commands
 from discord.ext import commands
 
@@ -66,7 +67,7 @@ class Miscellaneous(commands.Cog):
         messages.sort(key=lambda x: x[1], reverse=True)
         top_posts = messages[:25]
 
-        embed = discord.Embed(title = f'Top {len(top_posts)} Posts in {channel.name}', url='' ,description = '', color = self.emb_color ) 
+        embed = discord.Embed(title = f'{channel.name} \nTop {len(top_posts)} Posts', url='' ,description = '', color = self.emb_color ) 
 
         for i, (mess,count) in enumerate(top_posts):
             embed.add_field(name = f'#{i+1}', value = f'{count} Reactions - [Jump to Post]({mess.jump_url})', inline=False)
@@ -75,13 +76,22 @@ class Miscellaneous(commands.Cog):
 
     @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))  
     @app_commands.command(name='top_10_date', description='Find the top 10 posts in this text channel before a given date.')
-    async def find_top_posts(self, interaction:discord.Interaction, month:int, day:int, year:int):
+    @app_commands.describe(month="Month", day="Day", year="Year", limit="Total amount of messages to search. (max=20000)", minimum_reactions="Minimum reactions in a post.")
+    async def find_top_posts(self, interaction:discord.Interaction, month:int, day:int, year:int, limit:int, minimum_reactions:int):
         await interaction.response.defer()
+
+        if limit > 20000:
+            limit = 20000
+        elif limit < 0:
+            limit = 10000
+
+        if minimum_reactions < 3:
+            minimum_reactions = 3
 
         try:
             before_date = date(year,month,day)
             before_time = time(0,0,0)
-            before_datetime = datetime.combine(before_date,before_time)
+            before_datetime = datetime.combine(before_date, before_time)
         except Exception as e:
             await interaction.followup.send("Invalid date values provided.", ephemeral=True)
             return
@@ -97,22 +107,83 @@ class Miscellaneous(commands.Cog):
 
         # collect the messages
         messages:list[tuple] = []
-        async for message in channel.history(limit=20000,before=before_datetime):
+        async for message in channel.history(limit=limit, before=before_datetime):
             if not message.reactions:
                 continue
 
             total_reactions = sum(reaction.count for reaction in message.reactions)
-            if total_reactions > 10:
+            if total_reactions > minimum_reactions:
                 messages.append((message,total_reactions))
 
         # sort the messages
         messages.sort(key=lambda x: x[1], reverse=True)
         top_posts = messages[:25]
 
-        embed = discord.Embed(title = f'Top {len(top_posts)} Posts in {channel.name} before {before_datetime.date}', url='' ,description = '', color = self.emb_color ) 
+        embed = discord.Embed(title = f'{channel.name} \nTop {len(top_posts)} Posts \nbefore {before_datetime.strftime("%A, %B %d, %Y")}', 
+                              url='' ,
+                              description = f'Limited to {limit} messages.', color = self.emb_color ) 
 
         for i, (mess,count) in enumerate(top_posts):
             embed.add_field(name = f'#{i+1}', value = f'{count} Reactions - [Jump to Post]({mess.jump_url})', inline=False)
+
+        await interaction.followup.send(embed=embed)
+
+
+    @app_commands.checks.has_role(int(os.getenv('MANAGER_ROLE')))  
+    @app_commands.command(name='top_10_emoji', description='Find the top 10 posts in this text channel before a given date. Limited to emoji reactions.')
+    @app_commands.describe(month="Month", day="Day", year="Year", limit="Total amount of messages to search. (max=20000)", minimum_reactions="Minimum reactions in a post.")
+    async def find_top_posts(self, interaction:discord.Interaction, month:int, day:int, year:int, limit:int, minimum_reactions:int, emoji:str):
+        await interaction.response.defer()
+
+        if limit > 20000:
+            limit = 20000
+        elif limit < 0:
+            limit = 10000
+
+        if minimum_reactions < 3:
+            minimum_reactions = 3
+
+        try:
+            before_date = date(year,month,day)
+            before_time = time(0,0,0)
+            before_datetime = datetime.combine(before_date, before_time)
+        except Exception as e:
+            await interaction.followup.send("Invalid date values provided.", ephemeral=True)
+            return
+
+        if interaction.guild is None:
+            await interaction.followup.send("This command must be used within a text channel.", ephemeral=True)
+            return
+
+        channel:discord.TextChannel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            await interaction.followup.send("Text channel missing.", ephemeral=True)
+            return
+
+        # collect the messages
+        messages:list[tuple] = []
+        async for message in channel.history(limit=limit, before=before_datetime):
+            if not message.reactions:
+                continue
+
+            emoji_reaction = get(message.reactions, emoji=emoji)
+            if emoji_reaction:
+                total_reactions = sum(reaction.count for reaction in message.reactions)
+                emoji_reactions = emoji_reaction.count
+                if total_reactions >= minimum_reactions:
+                    messages.append((message, total_reactions, emoji_reactions))
+
+
+        # sort the messages
+        messages.sort(key=lambda x: x[1], reverse=True)
+        top_posts = messages[:25]
+
+        embed = discord.Embed(title = f'{channel.name} \nTop {len(top_posts)} Posts \nbefore {before_datetime.strftime("%A, %B %d, %Y")}', 
+                              url='' ,
+                              description = f'Limited to {limit} messages containing {emoji}.', color = self.emb_color ) 
+
+        for i, (mess,count, emojis) in enumerate(top_posts):
+            embed.add_field(name = f'#{i+1}', value = f'{count} Reactions - {emojis} {emoji} Reactions \n[Jump to Post]({mess.jump_url})', inline=False)
 
         await interaction.followup.send(embed=embed)
 
